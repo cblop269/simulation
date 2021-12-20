@@ -26,6 +26,7 @@ class Window(tk.Tk):
         self.create_widgets()
         self.charge_sky_image('/home/seba/Downloads/cameraman(1).fits')
         self.charge_antenna_config('/home/seba/Desktop/alma.C34-2.cfg')
+        self.plotter.draw_inputs(self.canvasA, self.interferometer.sky_image, self.interferometer.antenna_pos)
 
         # self.interferometer.read_image('/home/seba/Downloads/cameraman(1).fits')
         #
@@ -88,8 +89,8 @@ class Window(tk.Tk):
         self.label_export_di = tk.Label(self.frame7, text="Export Dirty Image", bg="gray30", fg="white")
 
         #   Variables
-        latitude_str = tk.IntVar(value=-23.0234)
-        rad_dec_str = tk.IntVar(value=-40)
+        latitude_str = tk.StringVar(value='-23.0234')
+        rad_dec_str = tk.IntVar(value=-60) #-40)
         hour_angle_S = tk.IntVar()
         hour_angle_S.set(-6)
         sample_interval = tk.IntVar()
@@ -278,14 +279,6 @@ class Window(tk.Tk):
         # messagebox.showerror(message='error: "{}"'.format(e))
         # tk.messagebox.showwarning("Warning", "Fill in all the spaces with numerical values")
 
-    def print_parameters(self):
-        print(self.input_lat.get())
-        print(self.input_rad_dec.get())
-        print(self.input_h_angle_S.get())
-        print(self.input_frecuency.get())
-        print(self.input_s_number.get())
-        print(self.input_h_angle_E.get())
-
     def get_units(self):
         f = self.frequency_unit.get()
         if(f == "GHz"):
@@ -305,7 +298,7 @@ class Window(tk.Tk):
         # draw sky image
         delta_X = c / (float(self.input_frecuency.get()) * self.interferometer.baseline.max_baseline)
         delta_X = delta_X / 7
-        self.plotter.draw_inputs(self.canvasA, self.interferometer.sky_image, self.interferometer.antenna_pos)
+        #self.plotter.draw_inputs(self.canvasA, self.interferometer.sky_image, self.interferometer.antenna_pos)
 
     def charge_antenna_config(self, route: str = None):
         if route is None:
@@ -313,7 +306,7 @@ class Window(tk.Tk):
             self.interferometer.read_antenna_config(route)
             self.filename_antenna.set(self.get_file_name(route))
         # draw sky image
-        self.plotter.draw_inputs(self.canvasA, self.interferometer.sky_image, self.interferometer.antenna_pos)
+        # self.plotter.draw_inputs(self.canvasA, self.interferometer.sky_image, self.interferometer.antenna_pos)
 
     def get_file_name(self, filepath):
         filepath = filepath.split('/')
