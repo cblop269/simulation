@@ -9,49 +9,49 @@ class Plotter:
     def __init__(self):
         self.figureA, self.axA = plt.subplots(1, 2, figsize=(9, 5))
         self.figureB, self.axB = plt.subplots(1, 4, figsize=(14, 5))
-        # self.figureA = Figure(figsize=(9, 5), dpi=100)
-        # self.figureB = Figure(figsize=(14, 5), dpi=100)
         # self.figure.subplots_adjust(hspace=1.5)
         self.figureA.subplots_adjust(wspace=.5, left=0.08, bottom=0.01)
         self.figureB.subplots_adjust(wspace=.5, left=0.08, bottom=0.01)
 
-    def draw_inputs(self, canvas, image, antenna_pos, delta_X: np.float64 = None, delta_Y: np.float64 = None):
+    def draw_inputs(self, canvas, image, antenna_pos):
 
-        # 1
+        # Sky Image
         self.draw_image(self.figureA, self.axA[0], image, 'Sky Image', 'x (pixel)', 'y (pixel)')
-        # 2
+        # Antenna Configuration
         self.draw_scatter(self.figureA, self.axA[1], antenna_pos[:, 0], antenna_pos[:, 1], None,
-                          'Antenna configuration', 'x (m)', 'y (m)')
+                          'Antenna Configuration', 'x (m)', 'y (m)')
         canvas.draw()
 
     def draw_plots_results(self, canvas, fft_image, visibilities, grid_image, dirty_image, xy_delta, uv_delta):
-        #
+        # get deltas
         deltax = xy_delta[0]
         deltay = xy_delta[1]
         deltau = uv_delta[0]
         deltav = uv_delta[1]
-        # 1
+
+        # FFT Image
         m, n = fft_image.shape
         limit_hor = deltau * n / 2
         limit_vert = deltav * m / 2
         self.draw_image(self.figureB, self.axB[0], fft_image, 'Transform Image', 'u (λ)', 'v (λ)', limit_hor,
                         limit_vert)
-        # 2
-        limit_hor = deltau * visibilities.UVW[0]
-        limit_vert = deltav * visibilities.UVW[1]
-        self.draw_scatter(self.figureB, self.axB[1], limit_hor, limit_vert, np.log(abs(visibilities.value) + 1),
-                          'Visibilities', 'u (λ)', 'v (λ)', visibilities.max_uv_coordinate * deltau,
-                          visibilities.max_uv_coordinate * deltav)
-        # 3
+        # Visibilities
+        horizontal_values = deltau * visibilities.UVW[0]
+        vertical_values = deltav * visibilities.UVW[1]
+        limit_hor = visibilities.max_uv_coordinate * deltau
+        limit_vert = visibilities.max_uv_coordinate * deltav
+        self.draw_scatter(self.figureB, self.axB[1], horizontal_values, vertical_values,
+                          np.log(abs(visibilities.value) + 1), 'Visibilities', 'u (λ)', 'v (λ)', limit_hor, limit_vert)
+        # Grid Image
         m, n = grid_image.shape
         limit_hor = deltau * n / 2
         limit_vert = deltav * m / 2
         self.draw_image(self.figureB, self.axB[2], grid_image, 'Gridded Image', 'v (λ)', 'u (λ)', limit_hor, limit_vert)
-        # 4
+        # Dirty Image
         m, n = dirty_image.shape
         limit_hor = deltax * n / 2
         limit_vert = deltay * m / 2
-        self.draw_image(self.figureB, self.axB[3], dirty_image, 'Dirty image', 'y (v)', 'x (v)', limit_hor, limit_vert)
+        self.draw_image(self.figureB, self.axB[3], dirty_image, 'Dirty Image', 'y (v)', 'x (v)', limit_hor, limit_vert)
 
         canvas.draw()
 
@@ -70,7 +70,7 @@ class Plotter:
             origin = 'lower'
 
         im = subplot.imshow(image, cmap='inferno', extent=extent, origin=origin, aspect='equal')
-        figure.colorbar(im, ax=subplot, orientation='horizontal', pad=0.1)
+        figure.colorbar(im, ax=subplot, orientation='horizontal', pad=0.2)
 
     def draw_scatter(self, figure, subplot, horizontal_values: np.ndarray, vertical_values: np.ndarray,
                      value: np.ndarray = None, title: str = None, horiz_label: str = None, vert_label: str = None,
@@ -88,7 +88,8 @@ class Plotter:
 
         im = subplot.scatter(horizontal_values, vertical_values, s=s, c=value, cmap='inferno')
         subplot.set_aspect('equal', adjustable='box')
-        figure.colorbar(im, ax=subplot, orientation='horizontal', pad=0.1)
+
         if h_limit is not None and v_limit is not None:
             subplot.set_xlim([-h_limit, h_limit])
             subplot.set_ylim([-v_limit, v_limit])
+            figure.colorbar(im, ax=subplot, orientation='horizontal', pad=0.2)

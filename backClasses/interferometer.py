@@ -2,7 +2,6 @@ import math
 import sys
 import numpy as np
 import astropy.units as u
-# from finufft import *
 from time import time
 from numba import jit
 from scipy.constants import c
@@ -89,12 +88,12 @@ class Interferometer:
             lat = (-90 + telescope_lat) * np.pi / 180
 
         # Rotate around x to rise w -Dec degrees
-        R2 = np.matrix([[1, 0, 0],
+        R2 = np.array([[1, 0, 0],
                         [0, np.cos((np.pi / 2) - decl_rad), -np.sin((np.pi / 2) - decl_rad)],
                         [0, np.sin((np.pi / 2) - decl_rad), np.cos((np.pi / 2) - decl_rad)]])
 
         # Rotate around x to correct for telescope latitude
-        R4 = np.matrix([[1, 0, 0],
+        R4 = np.array([[1, 0, 0],
                         [0, np.cos(lat), -np.sin(lat)],
                         [0, np.sin(lat), np.cos(lat)]])
 
@@ -102,39 +101,44 @@ class Interferometer:
         self.compute_uvw(lambda_num, R2, R4, ha, obs_freq)
 
     #@jit(forceobj=True)
-    def compute_uvw(self, lambda_num: float = None, R2: np.matrix = None, R4: np.matrix = None,
+    def compute_uvw(self, lambda_num: float = None, r2: np.ndarray = None, r4: np.ndarray = None,
                     ha: np.ndarray = None, obs_freq: float = None):
 
         # create a R3 for every HA
-        R3 = np.array([[np.cos(ha), -np.sin(ha), np.zeros([len(ha)])],
-                       [np.sin(ha), np.cos(ha), np.zeros([len(ha)])],
-                       [np.zeros([len(ha)]), np.zeros([len(ha)]), np.ones([len(ha)])]])
+        R3 = np.array([np.cos(ha), -np.sin(ha), np.zeros([len(ha)]),
+                       np.sin(ha), np.cos(ha), np.zeros([len(ha)]),
+                       np.zeros([len(ha)]), np.zeros([len(ha)]), np.ones([len(ha)])])
 
-        print('r3 ', R3.shape)
+
         # re-order the array
-        #R3 = np.swapaxes(R3, 1, 0)
-
+        print('r3 ', R3.shape)
+        R3 = np.swapaxes(R3, 1, 0)
+        print('r3 ', R3.shape)
         # operate every element in the array
-        #uvw = np.apply_along_axis(self.apply_rotation_matrix, 1, R3, R4, R2, lambda_num)
-        uvw = R4[:, :, np.newaxis] * R3 * R2[:, :, np.newaxis]
-        uvw = uvw.transpose()
-        uvw = (uvw * self.baseline.baselines) / lambda_num
+        uvw = np.apply_along_axis(self.apply_rotation_matrix, 1, R3, r4, r2, lambda_num)
+        #uvw = r4[:, :, np.newaxis] @ R3 @ r2[:, :, np.newaxis]
+        #uvw = uvw.transpose()
+        #uvw = (uvw * self.baseline.baselines) / lambda_num
 
         # re-order the visibilities to be easier to scattering
         a, b, c = np.shape(uvw)
-        print('original ', uvw.shape)
-        print('baseline ', self.baseline.baselines.shape)
-        print('ha ', len(ha))
-
+        '''print('original ', uvw.shape)
+        print('uvw.v1: ', uvw)
+        print('transpose ', uvw.transpose([1, 0, 2]).shape)
+        print('uvw.v2: ', uvw.transpose([1, 0, 2]))
+        print('reshape ', uvw.transpose([1, 0, 2]).reshape(b, a * c).shape)
+        print('uvw.v3: ', uvw.transpose([1, 0, 2]).reshape(b, a * c))'''
+        print('1111111 ', uvw)
+        print('2222222 ', uvw.transpose([1, 0, 2]))
         uvw = uvw.transpose([1, 0, 2]).reshape(b, a * c)
-        print('reshape ', uvw.shape)
+        #print('reshape ', uvw.shape)
         self.visibilities = Visibility(uvw, obs_freq)
 
     def apply_rotation_matrix(self, matrix3: np.ndarray, matrix4: np.matrix, matrix2: np.matrix,
                               lambda_num: float):
-        uvw = matrix4 * matrix3 * matrix2
+        uvw = matrix4 @ matrix3.reshape(3, 3) @ matrix2
         uvw = uvw.transpose()
-        uvw = (uvw * self.baseline.baselines) / lambda_num
+        uvw = (uvw @ self.baseline.baselines) / lambda_num
         return np.asarray(uvw)
 
     def read_image(self, route: str = None):
@@ -146,41 +150,23 @@ class Interferometer:
             print("I/O error({0}): {1}".format(e.errno, e.strerror))
             sys.exit()
 
-    def write_image(self, route: str = None):
-        #with fits.open(route) as image:
-        #    image_data = image[0].data
-        #self.sky_image = image_data
-        hdul = fits.HDUList()
-        hdul.writeto('new1.fits')
+    def write_image(self, data, route: str = None, ):
+        fits.writeto('new1.fits', data)
+
 
     def transform_fft(self):
         # transform with fast fourier transform in 2 dimensions
         fft_image = np.fft.fft2(self.sky_image)
         self.fft_image = fft_image
 
-        # other variables
-        self.N = max(len(self.fft_image[0]), len(self.fft_image))
-        self.delta_X = 1 / (2 * self.visibilities.max_uv_coordinate)
-        self.delta_X = self.delta_X / 7
-        self.delta_U = 1 / (self.N * self.delta_X)
-
     def transform_nufft(self):
-
         m, n = np.shape(self.sky_image)
         uvw = self.visibilities.UVW.transpose()
         uvw = uvw[:, :2]
         uvw = uvw[:, ::-1]
         uvw = uvw * np.pi / (np.max(np.abs(uvw)))  # convert to radians
         #
-        sky_image = self.sky_image.reshape(m * n)
-        x = np.linspace(- n / 2, (n / 2) - 1, n)
-        y = np.linspace(- m / 2, (m / 2) - 1, m)
-        xg, yg = np.meshgrid(x, y)
-        xg = xg.reshape(m * n)
-        yg = yg.reshape(m * n)
-
         NufftObj = NUFFT()
-        #k = len(self.visibilities.value)
         Nd = (m, n)  # image size
         Kd = (1024, 1024)  # k-space size
         Jd = (10, 10)
@@ -190,18 +176,11 @@ class Interferometer:
         ###############################
         u = self.visibilities.UVW[0] * np.pi / (np.max(np.abs(self.visibilities.UVW)))
         v = self.visibilities.UVW[1] * np.pi / (np.max(np.abs(self.visibilities.UVW)))
-        print('U ',u.shape)
-        print('V ',v.shape)
-        print('maxU ',np.max(u))
-        print('maxV ',np.max(v))
-        print('d  ',u.dtype)
-
 
         complex_sky_image = self.sky_image + 1j * np.zeros_like(self.sky_image)
-        #complex_sky_image = complex_sky_image.transpose()
 
         # the 2D transform outputs f array of shape (N1, N2)
-        f = finufft.nufft2d2(u, v, complex_sky_image, eps=1e-12)
+        f = finufft.nufft2d2(v, u, complex_sky_image, eps=1e-12)
 
         self.visibilities.set_value(f)
 
@@ -213,30 +192,35 @@ class Interferometer:
 
 
     def bilinear_interpolation(self):
+        # other variables
+        N = max(len(self.fft_image[0]), len(self.fft_image))
+        delta_X = 1 / (2 * self.visibilities.max_uv_coordinate)
+        delta_X = delta_X / 7
+        delta_U = 1 / (N * delta_X)
 
         # find the list of j and i equivalent to four points Q11 points
-        list_i = np.floor(self.visibilities.UVW[0] / self.delta_U) + (self.N / 2)
-        list_j = np.floor(self.visibilities.UVW[1] / self.delta_U) + (self.N / 2)
+        list_j = np.floor(self.visibilities.UVW[0] / delta_U) + (N / 2)  # horizontal
+        list_i = np.floor(self.visibilities.UVW[1] / delta_U) + (N / 2)  # vertical
 
         # then is applied  the linear interpolation
-        l_alpha = (self.visibilities.UVW[0] - ((list_i - (self.N / 2)) * self.delta_U)) / self.delta_U
-        l_beta = (self.visibilities.UVW[1] - ((list_j - (self.N / 2)) * self.delta_U)) / self.delta_U
-        uv_value = np.apply_along_axis(self.calculate_uv_value, 0, [list_i, list_j, l_alpha, l_beta])
+        l_alpha = (self.visibilities.UVW[0] - ((list_j - (N / 2)) * delta_U)) / delta_U
+        l_beta = (self.visibilities.UVW[1] - ((list_i - (N / 2)) * delta_U)) / delta_U
+        uv_value = np.apply_along_axis(self.calculate_uv_value, 0, [list_j, list_i, l_alpha, l_beta])
 
         # values are created for the visibilities object
         self.visibilities.set_value(uv_value)
 
     def calculate_uv_value(self, data: np.ndarray = None):
-        # current i position = data[0]
-        # current j position = data[1]
+        # current u position = data[0]
+        # current v position = data[1]
         # current alpha = data[2]
         # current beta = data[3])
-        i = int(data[0])
-        j = int(data[1])
+        j = int(data[0])
+        i = int(data[1])
 
         # linear interpolation in the horizontal-direction
-        fxy1 = (data[2] * self.fft_image[j][i + 1]) + ((1 - data[2]) * self.fft_image[j][i])
-        fxy2 = (data[2] * self.fft_image[j + 1][i + 1]) + ((1 - data[2]) * self.fft_image[j + 1][i])
+        fxy1 = (data[2] * self.fft_image[i][j + 1]) + ((1 - data[2]) * self.fft_image[i][j])
+        fxy2 = (data[2] * self.fft_image[i + 1][j + 1]) + ((1 - data[2]) * self.fft_image[i + 1][j])
 
         # linear interpolation in the vertical-direction
         uv_value = (data[3] * fxy2) + ((1 - data[3]) * fxy1)
@@ -329,11 +313,8 @@ class Interferometer:
         # Divide the gridded visibilities by the gridded weights
         gridded_Vo[rows, columns] /= gridded_weights[rows, columns]
 
-        # gridded_Vo = gridded_Vo[::-1, ::-1]
-
         self.gridded_image = gridded_weights
         self.gridded_vo = gridded_Vo
-        print('termino')
 
     def scheme_weights(self, gridded_weights, z, pos_u_index, pos_v_index, scheme, robust):
         # Selecting a scheme for weights
@@ -365,7 +346,6 @@ class Interferometer:
         if usefft:
             self.bilinear_interpolation()
 
-        # self.notuniform()
         else:
             self.transform_nufft()
             #self.fourier_series()

@@ -57,7 +57,6 @@ class Window(tk.Tk):
         self.frame_toolbar.grid(row=0, column=1, pady=10, padx=0, sticky=tk.NW)
         self.canvasA = FigureCanvasTkAgg(self.plotter.figureA, self.frameA)
         self.canvasA.get_tk_widget().grid(row=0, column=1, rowspan=2, pady=20, padx=20)
-        # self.canvasB.get_tk_widget().pack()
         self.toolbar = NavigationToolbar2Tk(self.canvasB, self.frame_toolbar)
         self.toolbar.update()
         # ///////////////////////////////////////////////////////////////////////////////////////////
@@ -102,9 +101,9 @@ class Window(tk.Tk):
         self.fft = tk.BooleanVar()
         self.nufft = tk.BooleanVar()
         self.current_algorythm = tk.BooleanVar()
-        self.fft.set(True)
-        self.nufft.set(False)
-        self.current_algorythm.set(True)
+        self.fft.set(False)
+        self.nufft.set(True)
+        self.current_algorythm.set(False)
         self.source_use = False
         self.obserbatory_use = False
         default_export_ti = tk.StringVar()
@@ -175,7 +174,7 @@ class Window(tk.Tk):
         self.run_button.config(command=self.run)  # self.draw_graphic_f, state=tk.DISABLED)
         #	export button
         self.export_button_ti = tk.Button(self.frame4, text='Export', width=10)
-        self.export_button_ti.config(state=tk.DISABLED)
+        self.export_button_ti.config(command=lambda: self.interferometer.write_image(np.abs(self.interferometer.dirty_image)))#, state=tk.DISABLED)
         self.export_button_uv = tk.Button(self.frame5, text='Export', width=10)
         self.export_button_uv.config(state=tk.DISABLED)
         self.export_button_gi = tk.Button(self.frame6, text='Export', width=10)
