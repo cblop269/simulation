@@ -17,20 +17,20 @@ class Window(tk.Tk):
         super().__init__()
         self.config(bg="gray20")
         # self.minsize(1200, 600)
+        #
         self.interferometer = Interferometer('/home/seba/Desktop/alma.C34-2.cfg')
         self.filename_antenna = tk.StringVar()
-        self.filename_antenna.set(self.get_file_name('/home/seba/Desktop/alma.C34-2.cfg'))
-
         self.filename_source = tk.StringVar()
+        self.filename_antenna.set(self.get_file_name('/home/seba/Desktop/alma.C34-2.cfg'))
+        self.filename_source.set(self.get_file_name('/home/seba/Downloads/cameraman(1).fits'))
+        #
         self.create_sub_menu()
         self.create_widgets()
+
         self.charge_sky_image('/home/seba/Downloads/cameraman(1).fits')
         self.charge_antenna_config('/home/seba/Desktop/alma.C34-2.cfg')
-        self.plotter.draw_inputs(self.canvasA, self.interferometer.sky_image, self.interferometer.antenna_pos)
-
-        # self.interferometer.read_image('/home/seba/Downloads/cameraman(1).fits')
         #
-        # self.filename_source.set(self.get_file_name('/home/seba/Downloads'))
+        self.plotter.draw_inputs(self.canvasA, self.interferometer.sky_image, self.interferometer.antenna_pos)
 
     def create_widgets(self):
         # Style
@@ -293,20 +293,24 @@ class Window(tk.Tk):
     def charge_sky_image(self, route: str = None):
         if route is None:
             route = tk.filedialog.askopenfilename()
-        self.interferometer.read_image(route)
-        self.filename_source.set(self.get_file_name(route))
-        # draw sky image
-        delta_X = c / (float(self.input_frecuency.get()) * self.interferometer.baseline.max_baseline)
-        delta_X = delta_X / 7
-        #self.plotter.draw_inputs(self.canvasA, self.interferometer.sky_image, self.interferometer.antenna_pos)
+            self.interferometer.read_image(route)
+            self.filename_source.set(self.get_file_name(route))
+            self.plotter.draw_inputs(self.canvasA, self.interferometer.sky_image, self.interferometer.antenna_pos)
+        else:
+            self.interferometer.read_image(route)
+            self.filename_source.set(self.get_file_name(route))
+
 
     def charge_antenna_config(self, route: str = None):
         if route is None:
             route = tk.filedialog.askopenfilename()
             self.interferometer.read_antenna_config(route)
             self.filename_antenna.set(self.get_file_name(route))
-        # draw sky image
-        # self.plotter.draw_inputs(self.canvasA, self.interferometer.sky_image, self.interferometer.antenna_pos)
+            self.plotter.draw_inputs(self.canvasA, self.interferometer.sky_image, self.interferometer.antenna_pos)
+        else:
+            self.interferometer.read_antenna_config(route)
+            self.filename_antenna.set(self.get_file_name(route))
+
 
     def get_file_name(self, filepath):
         filepath = filepath.split('/')

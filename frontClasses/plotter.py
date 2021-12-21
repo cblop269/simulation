@@ -22,24 +22,6 @@ class Plotter:
         # 2
         self.draw_scatter(self.figureA, self.axA[1], antenna_pos[:, 0], antenna_pos[:, 1], None,
                           'Antenna configuration', 'x (m)', 'y (m)')
-        '''self.axA[0].cla()
-        self.axA[0].set_title('Sky Image')
-        self.axA[0].set_xlabel('x(pixel)')
-        self.axA[0].set_ylabel('y(pixel)')
-        im_si = self.axA[0].imshow(image, vmin=0, vmax=np.max(image), aspect='equal', cmap='inferno')
-
-        self.axA[1].cla()
-        self.axA[1].set_title('Visibilities')
-        self.axA[1].set_xlabel('x(pixel)')
-        self.axA[1].set_ylabel('y(pixel)')
-        value = None
-        im_si = self.axA[1].scatter(antenna_pos[:, 0], antenna_pos[:, 1], vmin=0, vmax=np.max(value), cmap='inferno',
-                                    c=value)
-        # self.axA[1].set_xlim([x1 * 1.1, x2 * 1.1])
-        # self.axA[1].set_ylim([y1 * 1.1, y2 * 1.1])
-        self.axA[1].set_aspect('equal', adjustable='box')
-        # self.ax[1].axis([x1, x2, y1, y2])'''
-        #
         canvas.draw()
 
     def draw_plots_results(self, canvas, fft_image, visibilities, grid_image, dirty_image, xy_delta, uv_delta):
@@ -81,10 +63,13 @@ class Plotter:
         subplot.set_ylabel(vert_label)
         #
         extent = None
+        origin = None
+
         if h_limit is not None and v_limit is not None:
             extent = [- h_limit, h_limit, - v_limit, v_limit]
+            origin = 'lower'
 
-        im = subplot.imshow(image, cmap='inferno', extent=extent, origin='lower', aspect='equal')
+        im = subplot.imshow(image, cmap='inferno', extent=extent, origin=origin, aspect='equal')
         figure.colorbar(im, ax=subplot, orientation='horizontal', pad=0.1)
 
     def draw_scatter(self, figure, subplot, horizontal_values: np.ndarray, vertical_values: np.ndarray,
@@ -105,7 +90,5 @@ class Plotter:
         subplot.set_aspect('equal', adjustable='box')
         figure.colorbar(im, ax=subplot, orientation='horizontal', pad=0.1)
         if h_limit is not None and v_limit is not None:
-            print('1 ', h_limit)
-            print('2 ', v_limit)
             subplot.set_xlim([-h_limit, h_limit])
             subplot.set_ylim([-v_limit, v_limit])
