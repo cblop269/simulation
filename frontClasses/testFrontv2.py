@@ -72,7 +72,7 @@ class Window(tk.Tk):
 
         #   labels
         self.label_settings = tk.Label(self.frame1, text='Simulation parameters', font=("Courier", 16), bg="gray26",
-                                            fg="white")
+                                       fg="white")
         self.label_latitude = tk.Label(self.frame1, text='observatory latitude', bg="gray26", fg="white")
         self.label_declination = tk.Label(self.frame1, text='source declination', bg="gray26", fg="white")
         self.label_sample_frec = tk.Label(self.frame1, text='Sample frequency', bg="gray26", fg="white")
@@ -89,7 +89,7 @@ class Window(tk.Tk):
 
         #   Variables
         latitude_str = tk.StringVar(value='-23.0234')
-        rad_dec_str = tk.IntVar(value=-60) #-40)
+        rad_dec_str = tk.IntVar(value=-60)  # -40)
         hour_angle_S = tk.IntVar()
         hour_angle_S.set(-6)
         sample_interval = tk.IntVar()
@@ -140,41 +140,57 @@ class Window(tk.Tk):
                                               style='color.TCheckbutton')
         self.check_nufft.config(onvalue=True, offvalue=False, command=lambda: self.checkbuttonvalue(False))
 
-        #Dropdown List
-        option_frequency = ["GHz", "MHz", "KHz", "Hz"]
+        # Dropdown List
+        self.option_observatory = {" ° ": np.pi / 180, "rad": 1, "None": 1}
+        self.observatory_unit = tk.StringVar()
+        self.observatory_unit.set(" ° ")
+        self.optionMenu_obs = tk.OptionMenu(self.frame1, self.observatory_unit, * self.option_observatory.keys())
+        self.optionMenu_obs.config(width=4, justify='right')
+
+        self.option_antenna = {" ° ": np.pi / 180, "rad": 1, "None": 1}
+        self.antenna_unit = tk.StringVar()
+        self.antenna_unit.set(" ° ")
+        self.optionMenu_ant = tk.OptionMenu(self.frame1, self.antenna_unit, *self.option_antenna.keys())
+        self.optionMenu_ant.config(width=4, justify='right')
+
+        self.option_ha_start = {"HA": 15 * np.pi / 180.0, "rad": 1, " ° ": np.pi / 180.0}
+        self.ha_start_unit = tk.StringVar()
+        self.ha_start_unit.set("HA")
+        self.optionMenu_ha_s = tk.OptionMenu(self.frame1, self.ha_start_unit, * self.option_ha_start.keys())
+        self.optionMenu_ha_s.config(width=4, justify='right')
+
+        self.option_ha_end = {"HA": 15 * np.pi / 180.0, "rad": 1, " ° ": np.pi / 180.0}
+        self.ha_end_unit = tk.StringVar()
+        self.ha_end_unit.set("HA")
+        self.optionMenu_ha_e = tk.OptionMenu(self.frame1, self.ha_end_unit, * self.option_ha_end.keys())
+        self.optionMenu_ha_e.config(width=4, justify='right')
+
+        self.option_frequency = {"GHz": 1e9, "MHz": 1e6, "KHz": 1e3, "Hz": 1}
         self.frequency_unit = tk.StringVar()
-        self.frequency_unit.set(option_frequency[0])
-        self.option_menu_freq = tk.OptionMenu(self.frame1, self.frequency_unit, *option_frequency)
-        self.option_menu_freq.config(width=4, justify='right')
-        OPTIONS = ["Jan", "Feb", "Mar"]
-        variable = tk.StringVar()
-        variable.set(OPTIONS[0])
-        w = tk.OptionMenu(self.frame2, variable, *OPTIONS)
-        w.config(width=4, justify='right')
-        OPTIONS = ["Jan", "Feb", "Mar"]
-        variable = tk.StringVar()
-        variable.set(OPTIONS[0])
-        w = tk.OptionMenu(self.frame2, variable, *OPTIONS)
-        w.config(width=4, justify='right')
-        OPTIONS = ["Jan", "Feb", "Mar"]
-        variable = tk.StringVar()
-        variable.set(OPTIONS[0])
-        w = tk.OptionMenu(self.frame2, variable, *OPTIONS)
-        w.config(width=4, justify='right')
+        self.frequency_unit.set("GHz")
+        self.optionMenu_freq = tk.OptionMenu(self.frame1, self.frequency_unit, *self.option_frequency.keys())
+        self.optionMenu_freq.config(width=4, justify='right')
+
+        self.option_sample_interval = {"sec": 15 * np.pi / (3600 * 180), "min": 15 * np.pi / (60 * 180), "hr": 15 * np.pi / 180}
+        self.sample_interval_unit = tk.StringVar()
+        self.sample_interval_unit.set("sec")
+        self.optionMenu_sampl = tk.OptionMenu(self.frame1, self.sample_interval_unit, *self.option_sample_interval.keys())
+        self.optionMenu_sampl.config(width=4, justify='right')
 
         #   Buttons
-        #	open file button source file
+        # open file button source file
         self.import_button_S = tk.Button(self.frame2, text='Input file', width=10, height=1)
         self.import_button_S.config(command=self.charge_sky_image, bg="light blue")
-        #	open file button observatory file
+        # open file button observatory file
         self.import_button_O = tk.Button(self.frame2, text='Antenna config.', width=10, height=1)
         # self.import_button_O.config(command=self.open_file_O, bg="light blue")
-        #	run button
+        # run button
         self.run_button = tk.Button(self.frame3, text='Run', width=10)
         self.run_button.config(command=self.run)  # self.draw_graphic_f, state=tk.DISABLED)
-        #	export button
+        # export button
         self.export_button_ti = tk.Button(self.frame4, text='Export', width=10)
-        self.export_button_ti.config(command=lambda: self.interferometer.write_image(np.abs(self.interferometer.dirty_image)))#, state=tk.DISABLED)
+        self.export_button_ti.config(command=lambda: self.interferometer.write_image(
+            np.abs(self.interferometer.dirty_image)))  # , state=tk.DISABLED)
         self.export_button_uv = tk.Button(self.frame5, text='Export', width=10)
         self.export_button_uv.config(state=tk.DISABLED)
         self.export_button_gi = tk.Button(self.frame6, text='Export', width=10)
@@ -207,7 +223,12 @@ class Window(tk.Tk):
         self.input_s_number.grid(row=6, column=1, columnspan=2, padx=10, pady=10)
         self.check_fft.grid(row=7, column=1, columnspan=1, padx=10, pady=10)
         self.check_nufft.grid(row=7, column=2, columnspan=1, padx=10, pady=10)
-        self.option_menu_freq.grid(row=5, column=3, columnspan=1, padx=10, pady=10, sticky=tk.W)
+        self.optionMenu_obs.grid(row=1, column=3, columnspan=1, padx=10, pady=10, sticky=tk.W)
+        self.optionMenu_ant.grid(row=2, column=3, columnspan=1, padx=10, pady=10, sticky=tk.W)
+        self.optionMenu_ha_s.grid(row=3, column=3, columnspan=1, padx=10, pady=10, sticky=tk.W)
+        self.optionMenu_ha_e.grid(row=4, column=3, columnspan=1, padx=10, pady=10, sticky=tk.W)
+        self.optionMenu_freq.grid(row=5, column=3, columnspan=1, padx=10, pady=10, sticky=tk.W)
+        self.optionMenu_sampl.grid(row=6, column=3, columnspan=1, padx=10, pady=10, sticky=tk.W)
 
         self.import_button_S.grid(row=0, column=0, padx=20, pady=20)
         self.import_button_O.grid(row=0, column=1, padx=20, pady=20)
@@ -227,7 +248,6 @@ class Window(tk.Tk):
         self.imput_export_di.grid(row=1, column=0, pady=20, padx=20)
         self.export_button_di.grid(row=2, column=0, pady=20, padx=20)
 
-
     def checkbuttonvalue(self, usefft: bool = None):
         if usefft:
             self.nufft.set(False)
@@ -245,49 +265,35 @@ class Window(tk.Tk):
 
     def run(self):
         # try:
-        # get the values and transform change type from string to numerical values
-        self.get_units()
-        latitude_str = float(self.input_lat.get())
-        rad_dec_str = float(self.input_rad_dec.get())
-        hour_angle_S = float(self.input_h_angle_S.get())
-        hour_angle_E = float(self.input_h_angle_E.get())
-        sample_number = int(self.input_s_number.get())
-        sample_interval = float(self.input_frecuency.get()) * self.get_units()
+
+        # get the respective value inputs and transform to rad
+        latitude = (float(self.input_lat.get()) - 90) * self.option_antenna[self.antenna_unit.get()]
+        declination = float(self.input_rad_dec.get()) * self.option_observatory[self.observatory_unit.get()]
+        ha_start = float(self.input_h_angle_S.get()) * self.option_ha_start[self.ha_start_unit.get()]
+        ha_end = float(self.input_h_angle_E.get()) * self.option_ha_end[self.ha_end_unit.get()]
+        sample_interval = int(self.input_s_number.get()) * self.option_sample_interval[self.sample_interval_unit.get()]
+        frequency = float(self.input_frecuency.get()) * self.option_frequency[self.frequency_unit.get()]
         usefft = bool(self.fft.get())
 
         # run the interferometer
-        self.interferometer.run(latitude_str, rad_dec_str, hour_angle_S, hour_angle_E,
-                                sample_number, sample_interval, usefft)
-
-        m, n = np.shape(self.interferometer.sky_image)
-        ulimit = self.interferometer.deltau
-        vlimit = self.interferometer.deltav
-        xlimit = self.interferometer.deltax
-        ylimit = self.interferometer.deltay
+        self.interferometer.run(latitude, declination, ha_start, ha_end, sample_interval, frequency, usefft)
+        # get the inputs to draw plots
+        deltau = self.interferometer.deltau
+        deltav = self.interferometer.deltav
+        deltax = self.interferometer.deltax
+        deltay = self.interferometer.deltay
         fft_image = np.log(abs(self.interferometer.fft_image) + 1)
         grid_image = np.log(abs(self.interferometer.gridded_vo) + 1)
         dirty_image = abs(self.interferometer.dirty_image)
-
+        # draw the plot
         self.plotter.draw_plots_results(self.canvasB, fft_image, self.interferometer.visibilities, grid_image,
-                                        dirty_image, [xlimit, ylimit], [ulimit, vlimit])
-
+                                        dirty_image, [deltax, deltay], [deltau, deltav])
         # change to the plot view
         self.notebook.select(self.frameB)
 
         # except ValueError as e:
         # messagebox.showerror(message='error: "{}"'.format(e))
         # tk.messagebox.showwarning("Warning", "Fill in all the spaces with numerical values")
-
-    def get_units(self):
-        f = self.frequency_unit.get()
-        if(f == "GHz"):
-            return 1000000000
-        if(f == "MHz"):
-            return 1000000
-        if(f == "KHz"):
-            return 1000
-        if(f == "Hz"):
-            return 1
 
     def charge_sky_image(self, route: str = None):
         if route is None:
@@ -299,7 +305,6 @@ class Window(tk.Tk):
             self.interferometer.read_image(route)
             self.filename_source.set(self.get_file_name(route))
 
-
     def charge_antenna_config(self, route: str = None):
         if route is None:
             route = tk.filedialog.askopenfilename()
@@ -309,7 +314,6 @@ class Window(tk.Tk):
         else:
             self.interferometer.read_antenna_config(route)
             self.filename_antenna.set(self.get_file_name(route))
-
 
     def get_file_name(self, filepath):
         filepath = filepath.split('/')
