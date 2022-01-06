@@ -2,8 +2,9 @@
 import tkinter as tk
 from tkinter.filedialog import askopenfilename
 import numpy as np
+import math
 from astropy.io import fits
-from scipy.constants import c
+from scipy.constants import k
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from numba import jit
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -44,9 +45,11 @@ class Window(tk.Tk):
         self.frameA = tk.Frame(self.notebook, bg="gray26")
         self.frameB = tk.Frame(self.notebook, bg="gray26")
         self.frameC = tk.Frame(self.notebook, bg="gray26")
+        self.frameD = tk.Frame(self.notebook, bg="gray26")
         self.frame_toolbar = tk.Frame(self.frameB, bg="gray26")
         self.notebook.add(self.frameA, text="input")
         self.notebook.add(self.frameB, text="output")
+        self.notebook.add(self.frameD, text="------")
         self.notebook.add(self.frameC, text="export")
         self.notebook.pack(padx=20, pady=20)  # place(relx=0.05, rely=0.05, relwidth=0.9, relheight=0.9)
         self.notebook.select(self.frameA)
@@ -57,6 +60,8 @@ class Window(tk.Tk):
         self.frame_toolbar.grid(row=0, column=1, pady=10, padx=0, sticky=tk.NW)
         self.canvasA = FigureCanvasTkAgg(self.plotter.figureA, self.frameA)
         self.canvasA.get_tk_widget().grid(row=0, column=1, rowspan=2, pady=20, padx=20)
+        self.canvasD = FigureCanvasTkAgg(self.plotter.figureD, self.frameD)
+        self.canvasD.get_tk_widget().grid(row=0, column=1, rowspan=2, pady=20, padx=20)
         self.toolbar = NavigationToolbar2Tk(self.canvasB, self.frame_toolbar)
         self.toolbar.update()
         # ///////////////////////////////////////////////////////////////////////////////////////////
@@ -69,6 +74,7 @@ class Window(tk.Tk):
         self.frame5 = tk.Frame(self.frameC, bg="gray30")
         self.frame6 = tk.Frame(self.frameC, bg="gray30")
         self.frame7 = tk.Frame(self.frameC, bg="gray30")
+        self.frame8 = tk.Frame(self.frameD, bg="gray26")
 
         #   labels
         self.label_settings = tk.Label(self.frame1, text='Simulation parameters', font=("Courier", 16), bg="gray26",
@@ -76,7 +82,7 @@ class Window(tk.Tk):
         self.label_latitude = tk.Label(self.frame1, text='observatory latitude', bg="gray26", fg="white")
         self.label_declination = tk.Label(self.frame1, text='source declination', bg="gray26", fg="white")
         self.label_sample_frec = tk.Label(self.frame1, text='Sample frequency', bg="gray26", fg="white")
-        self.label_sample_n = tk.Label(self.frame1, text='Sampling interval (s)', bg="gray26", fg="white")
+        self.label_sample_n = tk.Label(self.frame1, text='Sampling interval', bg="gray26", fg="white")
         self.label_hour_angle_S = tk.Label(self.frame1, text='Hour Angle Start', bg="gray26", fg="white")
         self.label_hour_angle_E = tk.Label(self.frame1, text='Hour Angle End', bg="gray26", fg="white")
         self.label_algorythm = tk.Label(self.frame1, text='Algorithm', bg="gray26", fg="white")
@@ -86,6 +92,11 @@ class Window(tk.Tk):
         self.label_export_uv = tk.Label(self.frame5, text="Export Visibilities", bg="gray30", fg="white")
         self.label_export_gi = tk.Label(self.frame6, text="Export Grided Image", bg="gray30", fg="white")
         self.label_export_di = tk.Label(self.frame7, text="Export Dirty Image", bg="gray30", fg="white")
+        self.label_route_di = tk.Label(self.frame7, text="/home/seba/Downloads/", bg="gray30", fg="white")
+        self.label_settings2 = tk.Label(self.frame8, text="Settings", bg="gray26", fg="white", font=("Courier", 16))
+        self.label_system_temperature = tk.Label(self.frame8, text="system temperature", bg="gray26", fg="white")
+        self.label_integration_time = tk.Label(self.frame8, text="integration time", bg="gray26", fg="white")
+        self.label_bandwidth = tk.Label(self.frame8, text="bandwidth", bg="gray26", fg="white")
 
         #   Variables
         latitude_str = tk.StringVar(value='-23.0234')
@@ -104,12 +115,15 @@ class Window(tk.Tk):
         self.fft.set(False)
         self.nufft.set(True)
         self.current_algorythm.set(False)
-        self.source_use = False
-        self.obserbatory_use = False
         default_export_ti = tk.StringVar()
         default_export_uv = tk.StringVar()
         default_export_gi = tk.StringVar()
         default_export_di = tk.StringVar()
+        default_export_di.set('DirtyImage')
+        system_temperature = tk.StringVar(value='1')
+        integration_time = tk.StringVar(value='1')
+        bandwidth = tk.StringVar(value='1')
+
 
         #	Input
         self.input_lat = tk.Entry(self.frame1, textvariable=latitude_str, width=12, justify='right')
@@ -130,6 +144,12 @@ class Window(tk.Tk):
         self.imput_export_gi.config(textvariable=default_export_gi)
         self.imput_export_di = tk.Entry(self.frame7, width=15, justify='right')
         self.imput_export_di.config(textvariable=default_export_di)
+        self.input_system_temperature = tk.Entry(self.frame8, width=15, justify='right')
+        self.input_system_temperature.config(textvariable=system_temperature)
+        self.input_integration_time = tk.Entry(self.frame8, width=15, justify='right')
+        self.input_integration_time.config(textvariable=integration_time)
+        self.input_bandwidth = tk.Entry(self.frame8, width=15, justify='right')
+        self.input_bandwidth.config(textvariable=bandwidth)
 
         #   Check Buttons
         checkbutton_style = tk.ttk.Style()
@@ -189,14 +209,14 @@ class Window(tk.Tk):
         self.run_button.config(command=self.run)  # self.draw_graphic_f, state=tk.DISABLED)
         # export button
         self.export_button_ti = tk.Button(self.frame4, text='Export', width=10)
-        self.export_button_ti.config(command=lambda: self.interferometer.write_image(
-            np.abs(self.interferometer.dirty_image)))  # , state=tk.DISABLED)
+        self.export_button_ti.config(state=tk.DISABLED)
         self.export_button_uv = tk.Button(self.frame5, text='Export', width=10)
         self.export_button_uv.config(state=tk.DISABLED)
         self.export_button_gi = tk.Button(self.frame6, text='Export', width=10)
         self.export_button_gi.config(state=tk.DISABLED)
         self.export_button_di = tk.Button(self.frame7, text='Export', width=10)
-        self.export_button_di.config(state=tk.DISABLED)
+        self.export_button_di.config(command=lambda: self.interferometer.write_image(
+            np.abs(self.interferometer.dirty_image), self.label_route_di.cget("text"), default_export_di.get()))
 
         # placing widgets
         self.frame1.grid(row=1, column=0, pady=20, padx=20, sticky=tk.N)
@@ -206,6 +226,7 @@ class Window(tk.Tk):
         self.frame5.grid(row=0, column=1, pady=20, padx=10)
         self.frame6.grid(row=0, column=2, pady=20, padx=10)
         self.frame7.grid(row=0, column=3, pady=20, padx=10)
+        self.frame8.grid(row=0, column=0, pady=20, padx=10)
 
         self.label_settings.grid(row=0, column=0, columnspan=4, pady=5, padx=0)
         self.label_latitude.grid(row=1, column=0, columnspan=1, padx=10, pady=10, sticky=tk.W)
@@ -248,6 +269,14 @@ class Window(tk.Tk):
         self.imput_export_di.grid(row=1, column=0, pady=20, padx=20)
         self.export_button_di.grid(row=2, column=0, pady=20, padx=20)
 
+        self.input_system_temperature.grid(row=4, column=1, columnspan=1, padx=10, pady=10)
+        self.input_integration_time.grid(row=5, column=1, columnspan=1, padx=10, pady=10)
+        self.input_bandwidth.grid(row=6, column=1, columnspan=1, padx=10, pady=10)
+        self.label_settings2.grid(row=0, column=0, columnspan=2, padx=10, pady=10)
+        self.label_system_temperature.grid(row=4, column=0, columnspan=1, padx=10, pady=10, sticky=tk.W)
+        self.label_integration_time.grid(row=5, column=0, columnspan=1, padx=10, pady=10, sticky=tk.W)
+        self.label_bandwidth.grid(row=6, column=0, columnspan=1, padx=10, pady=10, sticky=tk.W)
+
     def checkbuttonvalue(self, usefft: bool = None):
         if usefft:
             self.nufft.set(False)
@@ -265,6 +294,11 @@ class Window(tk.Tk):
 
     def run(self):
         # try:
+        system_temperature = (float(self.input_system_temperature.get()))
+        integration_time = float(self.input_integration_time.get())
+        bandwidth = float(self.input_bandwidth.get())
+        self.interferometer.get_noise_level(system_temperature, integration_time, bandwidth)
+        print('++++', self.interferometer.noise_level_RMS)
 
         # get the respective value inputs and transform to rad
         latitude = (float(self.input_lat.get()) - 90) * self.option_antenna[self.antenna_unit.get()]
@@ -294,6 +328,8 @@ class Window(tk.Tk):
         # except ValueError as e:
         # messagebox.showerror(message='error: "{}"'.format(e))
         # tk.messagebox.showwarning("Warning", "Fill in all the spaces with numerical values")
+        self.plotter.draw_noise(self.canvasD, self.interferometer.visibilities, [deltau, deltav],
+                                self.interferometer.noise_level_RMS)
 
     def charge_sky_image(self, route: str = None):
         if route is None:
