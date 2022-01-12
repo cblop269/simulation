@@ -9,9 +9,11 @@ class Plotter:
     def __init__(self):
         self.figureA, self.axA = plt.subplots(1, 2, figsize=(9, 5))
         self.figureB, self.axB = plt.subplots(1, 4, figsize=(14, 5))
+        self.figureD, self.axD = plt.subplots(2, 1, figsize=(8, 6))
         # self.figure.subplots_adjust(hspace=1.5)
         self.figureA.subplots_adjust(wspace=.5, left=0.08, bottom=0.01)
         self.figureB.subplots_adjust(wspace=.5, left=0.08, bottom=0.01)
+        self.figureD.subplots_adjust(left=0.08, top=0.9)
         # define colorbars
         self.cb_si = None
         self.cb_ti = None
@@ -22,13 +24,32 @@ class Plotter:
     def draw_inputs(self, canvas, image, antenna_pos):
         if self.cb_si is not None:
             self.cb_si.remove()
-
         # Sky Image
         im = self.draw_image(self.figureA, self.axA[0], image, 'Sky Image', 'x (pixel)', 'y (pixel)')
         self.cb_si = self.figureA.colorbar(im, ax=self.axA[0], orientation='horizontal', pad=0.2)
         # Antenna Configuration
         self.draw_scatter(self.figureA, self.axA[1], antenna_pos[:, 0], antenna_pos[:, 1], None,
                           'Antenna Configuration', 'x (m)', 'y (m)')
+        canvas.draw()
+
+    def draw_noise(self, canvas, positionUV, noise_value, value, deltauv):
+        self.axD[0].cla()
+        self.axD[1].cla()
+        self.axD[0].set_title('')
+        self.axD[0].set_xlabel('distance (λ)')
+        self.axD[0].set_ylabel('value (Jy)')
+        self.axD[0].set_title('')
+        self.axD[0].set_xlabel('distance (λ)')
+        self.axD[0].set_ylabel('value (Jy)')
+        # get the uv value
+        noise_value = np.abs(noise_value)
+        value = np.abs(value)
+        # get the norm from u and v
+        distance = np.linalg.norm(positionUV, axis=0)
+        # draw plots
+        self.axD[0].plot(distance[distance.argsort()], value[distance.argsort()], linewidth=0.1)
+        self.axD[1].plot(distance[distance.argsort()], noise_value[distance.argsort()], linewidth=0.1)
+        #self.axD[1].bar(distance, value)
         canvas.draw()
 
     def draw_plots_results(self, canvas, fft_image, visibilities, grid_image, dirty_image, xy_delta, uv_delta):
@@ -58,7 +79,7 @@ class Plotter:
         limit_hor = visibilities.max_uv_coordinate * deltau
         limit_vert = visibilities.max_uv_coordinate * deltav
         im2 = self.draw_scatter(self.figureB, self.axB[1], horizontal_values, vertical_values,
-                          np.log(abs(visibilities.value) + 1), 'Visibilities', 'u (λ)', 'v (λ)', limit_hor, limit_vert)
+                          np.abs(visibilities.value), 'Visibilities', 'u (λ)', 'v (λ)', limit_hor, limit_vert)
 
         # Grid Image
         m, n = grid_image.shape

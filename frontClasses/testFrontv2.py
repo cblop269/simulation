@@ -51,7 +51,7 @@ class Window(tk.Tk):
         self.notebook.add(self.frameB, text="output")
         self.notebook.add(self.frameD, text="------")
         self.notebook.add(self.frameC, text="export")
-        self.notebook.pack(padx=20, pady=20)  # place(relx=0.05, rely=0.05, relwidth=0.9, relheight=0.9)
+        self.notebook.pack(padx=20, pady=20)
         self.notebook.select(self.frameA)
         #
         self.plotter = Plotter()
@@ -115,14 +115,16 @@ class Window(tk.Tk):
         self.fft.set(False)
         self.nufft.set(True)
         self.current_algorythm.set(False)
+        self.use_noise = tk.BooleanVar()
+        self.use_noise.set(True)
         default_export_ti = tk.StringVar()
         default_export_uv = tk.StringVar()
         default_export_gi = tk.StringVar()
         default_export_di = tk.StringVar()
         default_export_di.set('DirtyImage')
-        system_temperature = tk.StringVar(value='1')
-        integration_time = tk.StringVar(value='1')
-        bandwidth = tk.StringVar(value='1')
+        system_temperature = tk.StringVar(value='200')
+        integration_time = tk.StringVar(value='60')
+        bandwidth = tk.StringVar(value='300')
 
 
         #	Input
@@ -156,9 +158,10 @@ class Window(tk.Tk):
         checkbutton_style.configure('color.TCheckbutton', foreground='white', background='gray26')
         self.check_fft = tk.ttk.Checkbutton(self.frame1, text='FFT', variable=self.fft, style='color.TCheckbutton')
         self.check_fft.config(onvalue=True, offvalue=False, command=lambda: self.checkbuttonvalue(True))
-        self.check_nufft = tk.ttk.Checkbutton(self.frame1, text='NUFFT', variable=self.nufft,
-                                              style='color.TCheckbutton')
+        self.check_nufft = tk.ttk.Checkbutton(self.frame1, text='NUFFT', variable=self.nufft, style='color.TCheckbutton')
         self.check_nufft.config(onvalue=True, offvalue=False, command=lambda: self.checkbuttonvalue(False))
+        self.check_noise = tk.ttk.Checkbutton(self.frame8, text='Add Noise', variable=self.use_noise, style='color.TCheckbutton')
+        self.check_noise.config(onvalue=True, offvalue=False, command=self.checkbuttonnoise)
 
         # Dropdown List
         self.option_observatory = {" ° ": np.pi / 180, "rad": 1, "None": 1}
@@ -196,6 +199,24 @@ class Window(tk.Tk):
         self.sample_interval_unit.set("sec")
         self.optionMenu_sampl = tk.OptionMenu(self.frame1, self.sample_interval_unit, *self.option_sample_interval.keys())
         self.optionMenu_sampl.config(width=4, justify='right')
+
+        self.option_sysT = {"K": 1}
+        self.sysT_unit = tk.StringVar()
+        self.sysT_unit.set("K")
+        self.optionMenu_sysT = tk.OptionMenu(self.frame8, self.sysT_unit, *self.option_sysT.keys())
+        self.optionMenu_sysT.config(width=4, justify='right')
+
+        self.option_integr_time = {"sec": 1 / 3600, "min": 1 / 60, "hr": 1}
+        self.integr_time_unit = tk.StringVar()
+        self.integr_time_unit.set("sec")
+        self.optionMenu_integr_time = tk.OptionMenu(self.frame8, self.integr_time_unit, *self.option_integr_time.keys())
+        self.optionMenu_integr_time.config(width=4, justify='right')
+
+        self.option_bandwdith = {"GHz": 1e9, "MHz": 1e6, "KHz": 1e3, "Hz": 1}
+        self.bandwdith_unit = tk.StringVar()
+        self.bandwdith_unit.set("GHz")
+        self.optionMenu_bandwdith = tk.OptionMenu(self.frame8, self.bandwdith_unit, *self.option_bandwdith.keys())
+        self.optionMenu_bandwdith.config(width=4, justify='right')
 
         #   Buttons
         # open file button source file
@@ -269,6 +290,7 @@ class Window(tk.Tk):
         self.imput_export_di.grid(row=1, column=0, pady=20, padx=20)
         self.export_button_di.grid(row=2, column=0, pady=20, padx=20)
 
+        self.check_noise.grid(row=1, column=1, columnspan=2, padx=10, pady=10)
         self.input_system_temperature.grid(row=4, column=1, columnspan=1, padx=10, pady=10)
         self.input_integration_time.grid(row=5, column=1, columnspan=1, padx=10, pady=10)
         self.input_bandwidth.grid(row=6, column=1, columnspan=1, padx=10, pady=10)
@@ -276,6 +298,9 @@ class Window(tk.Tk):
         self.label_system_temperature.grid(row=4, column=0, columnspan=1, padx=10, pady=10, sticky=tk.W)
         self.label_integration_time.grid(row=5, column=0, columnspan=1, padx=10, pady=10, sticky=tk.W)
         self.label_bandwidth.grid(row=6, column=0, columnspan=1, padx=10, pady=10, sticky=tk.W)
+        self.optionMenu_sysT.grid(row=4, column=3, columnspan=1, padx=10, pady=10, sticky=tk.W)
+        self.optionMenu_integr_time.grid(row=5, column=3, columnspan=1, padx=10, pady=10, sticky=tk.W)
+        self.optionMenu_bandwdith.grid(row=6, column=3, columnspan=1, padx=10, pady=10, sticky=tk.W)
 
     def checkbuttonvalue(self, usefft: bool = None):
         if usefft:
@@ -284,6 +309,16 @@ class Window(tk.Tk):
         else:
             self.nufft.set(True)
             self.fft.set(False)
+
+    def checkbuttonnoise(self):
+        if self.use_noise.get():
+            self.input_system_temperature.config(state='normal')
+            self.input_integration_time.config(state='normal')
+            self.input_bandwidth.config(state='normal')
+        else:
+            self.input_system_temperature.config(state='disabled')
+            self.input_integration_time.config(state='disabled')
+            self.input_bandwidth.config(state='disabled')
 
     def create_sub_menu(self):
         self.my_menu = tk.Menu(self, bg="gray51")
@@ -294,11 +329,12 @@ class Window(tk.Tk):
 
     def run(self):
         # try:
-        system_temperature = (float(self.input_system_temperature.get()))
-        integration_time = float(self.input_integration_time.get())
-        bandwidth = float(self.input_bandwidth.get())
-        self.interferometer.get_noise_level(system_temperature, integration_time, bandwidth)
-        print('++++', self.interferometer.noise_level_RMS)
+        rms_parameters = None
+        if self.use_noise.get():
+            system_temperature = (float(self.input_system_temperature.get()))
+            integration_time = float(self.input_integration_time.get())
+            bandwidth = float(self.input_bandwidth.get()) * self.option_bandwdith[self.bandwdith_unit.get()]
+            rms_parameters = [system_temperature, integration_time, bandwidth]
 
         # get the respective value inputs and transform to rad
         latitude = (float(self.input_lat.get()) - 90) * self.option_antenna[self.antenna_unit.get()]
@@ -310,14 +346,14 @@ class Window(tk.Tk):
         usefft = bool(self.fft.get())
 
         # run the interferometer
-        self.interferometer.run(latitude, declination, ha_start, ha_end, sample_interval, frequency, usefft)
+        self.interferometer.run(latitude, declination, ha_start, ha_end, sample_interval, frequency, usefft, rms_parameters)
         # get the inputs to draw plots
         deltau = self.interferometer.deltau
         deltav = self.interferometer.deltav
         deltax = self.interferometer.deltax
         deltay = self.interferometer.deltay
-        fft_image = np.log(abs(self.interferometer.fft_image) + 1)
-        grid_image = np.log(abs(self.interferometer.gridded_vo) + 1)
+        fft_image = np.abs(self.interferometer.fft_image)#np.log(abs(self.interferometer.fft_image) + 1)
+        grid_image = np.abs(self.interferometer.gridded_vo)#np.log(abs(self.interferometer.gridded_vo) + 1)
         dirty_image = abs(self.interferometer.dirty_image)
         # draw the plot
         self.plotter.draw_plots_results(self.canvasB, fft_image, self.interferometer.visibilities, grid_image,
@@ -328,8 +364,9 @@ class Window(tk.Tk):
         # except ValueError as e:
         # messagebox.showerror(message='error: "{}"'.format(e))
         # tk.messagebox.showwarning("Warning", "Fill in all the spaces with numerical values")
-        self.plotter.draw_noise(self.canvasD, self.interferometer.visibilities, [deltau, deltav],
-                                self.interferometer.noise_level_RMS)
+        self.plotter.draw_noise(self.canvasD, self.interferometer.visibilities.UVW[:2],
+                                self.interferometer.noise, self.interferometer.visibilities.value_real,
+                                deltav)
 
     def charge_sky_image(self, route: str = None):
         if route is None:

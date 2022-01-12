@@ -5,10 +5,12 @@ import astropy.units as u
 from time import time
 from numba import jit
 from scipy.constants import c
+from scipy.constants import k
 from math import floor
 from astropy.io import fits
 from scipy import interpolate
 from pynufft import NUFFT
+from pathlib import Path
 import finufft
 
 from backClasses.visibility import Visibility
@@ -18,6 +20,13 @@ from backClasses.baseline import Baseline
 class Interferometer:
 
     def __init__(self, antenna_route: str = None):  # , telescope_lat, source_decl, ha_start, ha_end, dt, obs_freq):
+        self.sigma = None
+        self.antenna_number = None
+        self.antenna_area = None
+        self.deltay = None
+        self.deltav = None
+        self.deltax = None
+        self.deltau = None
         self.gridded_vo = None
         self.gridded_image = None
         self.sky_image = None
@@ -36,8 +45,11 @@ class Interferometer:
 
     def read_antenna_config(self, route: str):
         try:
-            file_observatory = np.loadtxt(route, skiprows=3, usecols=(0, 1, 2))
-            return file_observatory
+            file_observatory = np.loadtxt(route, skiprows=3, usecols=(0, 1, 2, 3))
+            self.antenna_number = len(file_observatory)
+            antenna_radius = np.sum(file_observatory[:, 3]) / (2 * self.antenna_number)
+            self.antenna_area = np.pi * (antenna_radius) ** 2
+            return file_observatory[:, :3]
         except IOError as e:
             print("I/O error({0}): {1}".format(e.errno, e.strerror))
             sys.exit()
@@ -87,73 +99,23 @@ class Interferometer:
 
         # Rotate around x to correct for telescope latitude
         R4 = np.array([[1, 0, 0],
-                        [0, np.cos(lat_rad), -np.sin(lat_rad)],
-                        [0, np.sin(lat_rad), np.cos(lat_rad)]])
-
-        lambda_num = c / obs_freq
-        self.compute_uvw(lambda_num, R2, R4, ha, obs_freq)
-
-    def create_uv_position2(self, telescope_lat: float = None, source_decl: float = None,
-                           ha: np.ndarray = None, obs_freq: float = None):
-        # obs_freq is observing frequency in Hz (continuum ??)
-        # telescope_lat in degrees. Example -23
-        # source_decl Source declination in degrees. For instance 18
-        decl_rad = 0
-        lat = 0
-        if telescope_lat is not None and source_decl is not None:
-            decl_rad = source_decl * np.pi / 180
-            lat = (-90 + telescope_lat) * np.pi / 180
-
-        # Rotate around x to rise w -Dec degrees
-        R2 = np.array([[1, 0, 0],
-                        [0, np.cos((np.pi / 2) - decl_rad), -np.sin((np.pi / 2) - decl_rad)],
-                        [0, np.sin((np.pi / 2) - decl_rad), np.cos((np.pi / 2) - decl_rad)]])
-
-        # Rotate around x to correct for telescope latitude
-        R4 = np.array([[1, 0, 0],
-                        [0, np.cos(lat), -np.sin(lat)],
-                        [0, np.sin(lat), np.cos(lat)]])
-
-        lambda_num = c / obs_freq
-
-        UVW = np.empty([3, 3])
-        for k in range(0, len(ha)):
-            # Rotate around z to get w pointing to source
-            # This matrix, R3, depends on HA, so it is computed for each
-            # sampling
-            # create a R3 for every HA
-            R3 = np.array([[np.cos(ha[k]), -np.sin(ha[k]), 0],
-                           [np.sin(ha[k]), np.cos(ha[k]), 0],
-                           [0, 0, 1]])
-
-            uvw = R4 @ R3 @ R2
-            uvw = uvw.transpose()
-            uvw = uvw @ self.baseline.baselines
-            UVW = np.concatenate((UVW, uvw), axis=1)
-
-        UVW = UVW / lambda_num
-        self.visibilities = Visibility(UVW, obs_freq)
-
-    def compute_uvw(self, lambda_num: float = None, r2: np.ndarray = None, r4: np.ndarray = None,
-                    ha: np.ndarray = None, obs_freq: float = None):
+                       [0, np.cos(lat_rad), -np.sin(lat_rad)],
+                       [0, np.sin(lat_rad), np.cos(lat_rad)]])
 
         # create a R3 for every HA
         R3 = np.array([np.cos(ha), -np.sin(ha), np.zeros([len(ha)]),
                        np.sin(ha), np.cos(ha), np.zeros([len(ha)]),
                        np.zeros([len(ha)]), np.zeros([len(ha)]), np.ones([len(ha)])])
 
-
         # re-order the array from a matriz of array to array of matrix
         print('r3 ', R3.shape)
         R3 = np.swapaxes(R3, 1, 0)
         print('r3 ', R3.shape)
+        lambda_num = c / obs_freq
         # operate every element in the array
-        uvw = np.apply_along_axis(self.apply_rotation_matrix, 1, R3, r4, r2, lambda_num)
-        #uvw = r4[:, :, np.newaxis] @ R3 @ r2[:, :, np.newaxis]
-        #uvw = uvw.transpose()
-        #uvw = (uvw * self.baseline.baselines) / lambda_num
-
-        # re-order the visibilities to be easier to scattering, transposiging the array to array of u arrays, v arrays and w arrays
+        uvw = np.apply_along_axis(self.apply_rotation_matrix, 1, R3, R4, R2, lambda_num)
+        # re-order the visibilities to be easier to scattering, transposing to get u positions array, 
+        # v positions array and w positions array
         m, n, l = np.shape(uvw)
         uvw = uvw.transpose([1, 0, 2]).reshape(n, m * l)
         self.visibilities = Visibility(uvw, obs_freq)
@@ -174,8 +136,13 @@ class Interferometer:
             print("I/O error({0}): {1}".format(e.errno, e.strerror))
             sys.exit()
 
-    def write_image(self, data, route: str = None, ):
-        fits.writeto('new1.fits', data)
+    def write_image(self, data, route: str = None, name: str = None):
+        print('------>', route, '-------->', name)
+        '''data_folder = Path("source_data/text_files/")
+        file_to_open = data_folder / "raw_data.txt"
+        f = open(file_to_open)
+        print(f.read())'''
+        fits.writeto(route + name + '.fits', data)
 
     def transform_fft(self):
         # transform with fast fourier transform in 2 dimensions
@@ -195,7 +162,7 @@ class Interferometer:
         Jd = (10, 10)
         NufftObj.plan(uvw, Nd, Kd, Jd)
 
-        #values = NufftObj.forward(self.sky_image)
+        # values = NufftObj.forward(self.sky_image)
         ###############################
         u = self.visibilities.UVW[0] * np.pi / self.visibilities.max_uv_coordinate
         v = self.visibilities.UVW[1] * np.pi / self.visibilities.max_uv_coordinate
@@ -212,7 +179,6 @@ class Interferometer:
         dirty_image = np.fft.ifft2(dirty_image)
         dirty_image = np.fft.fftshift(dirty_image)
         self.dirty_image = dirty_image
-
 
     def bilinear_interpolation(self):
         # other variables
@@ -266,7 +232,6 @@ class Interferometer:
         yg = yg.reshape(m * n)
         #
         result = np.apply_along_axis(self.test_function_2, 1, uvw, sky_image, yg, xg)
-        # result = np.apply_along_axis(self.test_function_3, 1, uvw, self.sky_image, y, x, n, m)
         self.visibilities.set_value(result)
 
     @jit(forceobj=True)
@@ -277,23 +242,14 @@ class Interferometer:
         new_visibility = np.sum(new_visibility)
         return new_visibility
 
-    def test_function_3(self, uvw, sky_image, j_set, i_set, n, m):
-        new_visibility = np.empty([0])
-        for j in j_set:
-            for i in i_set:
-                value = (uvw[0] * i) + (uvw[1] * j)
-                e = np.cos(value) + 1j * np.sin(value)
-                result = sky_image[int(j + (m / 2))][int(i + (n / 2))] * (-e)
-                new_visibility = np.append(new_visibility, result)
-        return np.sum(new_visibility)
-
     def gridder(self, imagesize, scheme, robust):
         # vis numpy array with -> [u v w Re Im We f]
         # scheme = 1, robust = 0
         # return gridded image, deltau, max uv, delta x
         uvw = self.visibilities.UVW.transpose()
         uvw = uvw[:, :2]
-        print('max u: ', np.max(self.visibilities.UVW[0]), '- max v: ', np.max(abs(self.visibilities.UVW[1])),'- n uv: ', len(self.visibilities.UVW[0]))
+        print('max u: ', np.max(self.visibilities.UVW[0]), '- max v: ', np.max(abs(self.visibilities.UVW[1])),
+              '- n uv: ', len(self.visibilities.UVW[0]))
 
         epsilon = 1e-5
         maxuv = self.visibilities.max_uv_coordinate + epsilon
@@ -347,14 +303,14 @@ class Interferometer:
             elif scheme == 1:
                 self.visibilities.weight[k] /= gridded_weights[pos_v_index[k]][pos_u_index[k]]
             elif scheme == 2:
-                self.visibilities.weight[k] *= np.sqrt(self.visibilities.UVW[0][k] ** 2 + self.visibilities.UVW[1][k] ** 2)
+                self.visibilities.weight[k] *= np.sqrt(
+                    self.visibilities.UVW[0][k] ** 2 + self.visibilities.UVW[1][k] ** 2)
             else:
                 f2 = (5.0 * np.power(10.0, -robust)) ** 2 / average_weights
                 self.visibilities.weight[k] /= (1.0 + gridded_weights[pos_v_index[k]][pos_u_index[k]] * f2)
 
-
     def run(self, telescope_lat: float = None, source_decl: float = None, ha_start: float = None,
-            ha_end: float = None, dt: int = None, obs_freq: float = None, usefft: bool = None):
+            ha_end: float = None, dt: int = None, obs_freq: float = None, usefft: bool = None, rms_parameters: tuple = None):
         # toma: la imagen de entrada(sky_image), el objeto visibilities(self)
 
         # uv positions
@@ -371,6 +327,30 @@ class Interferometer:
 
         else:
             self.transform_nufft()
-            #self.fourier_series()
+            # self.fourier_series()
+
+        # add noise
+        if rms_parameters is not None:
+            self.get_noise_level(rms_parameters[0], rms_parameters[1], rms_parameters[2])
+            self.add_noise()
+            if rms_parameters[1] == 0 or rms_parameters[2] == 0:
+                raise ValueError('invalid parameter, integration time and bandwidth must not be 0')
+
         self.gridder(len(self.fft_image), 1, 0)
         self.inverse_transform_fft()
+
+    def get_noise_level(self, system_temperature, integration_time, bandwidth):
+
+        sqrt_root = self.antenna_number * (self.antenna_number - 1)
+        sqrt_root = math.sqrt(sqrt_root * integration_time * bandwidth)
+        self.sigma = 2 * k * system_temperature / (self.antenna_area * sqrt_root)
+        self.sigma *= 1e26
+        print('st: ', system_temperature, 'it: ', integration_time, 'bw: ', bandwidth, 'k: ', k, 'aa:', self.antenna_area)
+        print('sigma: ', self.sigma)
+
+    def add_noise(self):
+        shape_values = self.visibilities.value.shape
+        real_noise = np.random.normal(0, self.sigma, shape_values)
+        imaginary_noise = np.random.normal(0, self.sigma, shape_values)
+        self.noise = real_noise + (1j * imaginary_noise)
+        self.visibilities.value += self.noise
