@@ -139,7 +139,7 @@ R4 = np.array([[1, 0, 0],
 # In[36]:
 
 
-UVW = np.empty([3,3])
+UVW = None #np.empty([3,3])
 for k in range(0, len(ha_rad)):
     # Rotate around z to get w pointing to source
     # This matrix, R3, depends on HA, so it is computed for each
@@ -152,7 +152,10 @@ for k in range(0, len(ha_rad)):
     uvw = R4 @ R3 @ R2
     uvw = uvw.transpose()
     uvw = uvw @ baseline
-    UVW = np.concatenate((UVW, uvw), axis=1)
+    if UVW is None:
+        UVW = uvw
+    else:
+        UVW = np.concatenate((UVW, uvw), axis=1)
 
 # define lambda, being c the light speed constant
 lambda_num = c / frequency
