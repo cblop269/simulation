@@ -23,10 +23,6 @@ class Interferometer:
         self.sigma = 0 * cds.Jy
         self.antenna_number = None
         self.antenna_area = None
-        self.deltay = None
-        self.deltav = None
-        self.deltax = None
-        self.deltau = None
         self.gridded_vo = None
         self.gridded_image = None
         self.sky_image = None
@@ -116,7 +112,8 @@ class Interferometer:
         # v positions array and w positions array
         m, n, l = np.shape(uvw)
         uvw = uvw.transpose([1, 0, 2]).reshape(n, m * l)
-        self.visibilities = Visibility(uvw, obs_freq)
+        imagesize = len(self.sky_image)
+        self.visibilities = Visibility(uvw, obs_freq, imagesize)
 
     def apply_rotation_matrix(self, matrix3: np.ndarray, matrix4: np.matrix, matrix2: np.matrix,
                               lambda_num: float):
@@ -179,19 +176,19 @@ class Interferometer:
         self.dirty_image = dirty_image
 
     def bilinear_interpolation(self):
+        u = self.visibilities.UVW[0]
+        v = self.visibilities.UVW[1]
         # other variables
         N = max(len(self.fft_image[0]), len(self.fft_image))
-        delta_X = 1 / (2 * self.visibilities.max_uv_coordinate)
-        delta_X = delta_X / 7
-        delta_U = 1 / (N * delta_X)
+        deltau = - self.visibilities.delatu
 
-        # find the list of j and i equivalent to four points Q11 points
-        list_j = np.floor(self.visibilities.UVW[0] / delta_U) + (N / 2)  # horizontal
-        list_i = np.floor(self.visibilities.UVW[1] / delta_U) + (N / 2)  # vertical
+        # find the list of j and i equivalent to one of the four points, Q11 points
+        list_j = np.floor(u / deltau) + ((N - 1) / 2)  # horizontal
+        list_i = np.floor(v / deltau) + ((N - 1) / 2)  # vertical
 
         # then is applied  the linear interpolation
-        l_alpha = (self.visibilities.UVW[0] - ((list_j - (N / 2)) * delta_U)) / delta_U
-        l_beta = (self.visibilities.UVW[1] - ((list_i - (N / 2)) * delta_U)) / delta_U
+        l_alpha = (u - ((list_j - ((N - 1) / 2)) * deltau)) / deltau
+        l_beta = (v - ((list_i - ((N - 1) / 2)) * deltau)) / deltau
         uv_value = np.apply_along_axis(self.calculate_uv_value, 0, [list_j, list_i, l_alpha, l_beta])
 
         # values are created for the visibilities object
@@ -246,27 +243,19 @@ class Interferometer:
         # return gridded image, deltau, max uv, delta x
         uvw = self.visibilities.UVW.transpose()
         uvw = uvw[:, :2]
-        print('max u: ', np.max(self.visibilities.UVW[0]), '- max v: ', np.max(abs(self.visibilities.UVW[1])),
-              '- n uv: ', len(self.visibilities.UVW[0]))
+        uv_value = self.visibilities.uv_value + self.noise
 
-        epsilon = 1e-5
-        maxuv = self.visibilities.max_uv_coordinate + epsilon
-
-        z = len(self.visibilities.value)
+        z = len(uv_value)
         pos_u_index = np.zeros(z).astype(int)
         pos_v_index = np.zeros(z).astype(int)
-        self.deltau = -2 * maxuv / (imagesize - 1)
-        self.deltav = - self.deltau
-        self.deltax = 1 / (imagesize * self.deltau)
-        self.deltay = 1 / (imagesize * self.deltav)
-        print('deltau ', self.deltau)
-        print('deltax ', self.deltax)
+        deltau = self.visibilities.deltau
+        deltav = self.visibilities.deltav
 
         # Gridding weights if ROBUST OR UNIFORM
         gridded_weights = np.zeros((imagesize, imagesize))
         for k in range(0, z):
-            j = int(np.round(uvw[k][0] / self.deltau) + imagesize / 2)
-            i = int(np.round(uvw[k][1] / self.deltav) + imagesize / 2)
+            j = int(np.round(uvw[k][0] / deltau) + imagesize / 2)
+            i = int(np.round(uvw[k][1] / deltav) + imagesize / 2)
             pos_v_index[k] = i
             pos_u_index[k] = j
             gridded_weights[i][j] += self.visibilities.weight[k]
@@ -279,10 +268,10 @@ class Interferometer:
         gridded_Vo = np.zeros((imagesize, imagesize)) + 1.0j * np.zeros((imagesize, imagesize))
 
         for k in range(0, z):
-            j = int(np.round(uvw[k][0] / self.deltau) + imagesize / 2)
-            i = int(np.round(uvw[k][1] / self.deltav) + imagesize / 2)
+            j = int(np.round(uvw[k][0] / deltau) + imagesize / 2)
+            i = int(np.round(uvw[k][1] / deltav) + imagesize / 2)
             gridded_weights[i][j] += self.visibilities.weight[k]
-            gridded_Vo[i][j] += self.visibilities.weight[k] * self.visibilities.value[k]
+            gridded_Vo[i][j] += self.visibilities.weight[k] * uv_value[k]
 
         # Check rows and columns where gridded weights are greater than 1
         rows, columns = np.where(gridded_weights > 0)
