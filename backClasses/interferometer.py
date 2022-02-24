@@ -39,11 +39,17 @@ class Interferometer:
 
     def read_antenna_config(self, route: str):
         try:
+            # extract content from the route file
             file_observatory = np.loadtxt(route, skiprows=3, usecols=(0, 1, 2, 3))
-            self.antenna_number = len(file_observatory)
-            antenna_radius = np.sum(file_observatory[:, 3]) / (2 * self.antenna_number)
-            self.antenna_area = np.pi * (antenna_radius) ** 2
-            return file_observatory[:, :3]
+            # get other parameters
+            antenna_position = file_observatory[:, :3]
+            antenna_number = len(file_observatory)
+            antenna_radius = np.sum(file_observatory[:, 3]) / (2 * antenna_number)
+            antenna_radius *= u.m
+            # save parameters
+            self.antenna_area = np.pi * (antenna_radius ** 2)
+            self.antenna_number = antenna_number
+            self.antenna_pos = antenna_position * u.m
         except IOError as e:
             print("I/O error({0}): {1}".format(e.errno, e.strerror))
             sys.exit()
@@ -59,19 +65,31 @@ class Interferometer:
         ant_set1 = np.repeat(self.antenna_pos, repeats=len(self.antenna_pos), axis=0)
         ant_set2 = np.concatenate([self.antenna_pos] * len(self.antenna_pos), axis=0)
         baseline = ant_set1 - ant_set2
-        # take off the [0,0,0] baseline
-        rows, columns = np.where(baseline == 0)
+        # take off the invalid [0,0,0] values of baseline (the distance of an antenna from itself)
+        rows = np.where(np.sum(baseline, axis=1) == 0)
         baseline = np.delete(baseline, rows, 0)
+
+        # Solo para pruebas unitarias
+        #baseline = baseline[:1, :] # hay que remover esto <------------------
+
         # transpose the baselines array
         baseline = baseline.transpose()
-        return baseline
+        self.baseline = Baseline(baseline, self.antenna_pos)
 
-    def compute_hour_angle(self, ha_start_rad: float = None, ha_end_rad: float = None, dt_rad: int = None):
+    def compute_hour_angle(self, ha_start: float = None, ha_end: float = None, dt: int = None):
         # ha_rad[] vector with hour angle samplings in radians!!!
         # ha_star, ha_end in Hours (for instance -1 hora, 1 hora)
         # dt sampling interval in seconds (for instance 60 seconds)
         # check hour angle limits
-        ha_rad = np.arange(ha_start_rad, ha_end_rad, dt_rad)
+
+        # take the units, to make the values dimensionless
+        ha_unit = ha_start.unit
+        ha_start = ha_start.value
+        ha_end = ha_end.value
+        dt = dt.value
+        #
+        ha_rad = np.arange(ha_start, ha_end, dt)
+        ha_rad = ha_rad * ha_unit
         return ha_rad
 
     def create_uv_position(self, lat_rad: float = None, decl_rad: float = None,
@@ -88,8 +106,8 @@ class Interferometer:
 
         # Rotate around x to rise w -Dec degrees
         R2 = np.array([[1, 0, 0],
-                       [0, np.cos((np.pi / 2) - decl_rad), -np.sin((np.pi / 2) - decl_rad)],
-                       [0, np.sin((np.pi / 2) - decl_rad), np.cos((np.pi / 2) - decl_rad)]])
+                       [0, np.cos(((np.pi / 2) * u.rad) - decl_rad), -np.sin(((np.pi / 2) * u.rad) - decl_rad)],
+                       [0, np.sin(((np.pi / 2) * u.rad) - decl_rad), np.cos(((np.pi / 2) * u.rad) - decl_rad)]])
 
         # Rotate around x to correct for telescope latitude
         R4 = np.array([[1, 0, 0],
@@ -101,15 +119,13 @@ class Interferometer:
                        np.sin(ha), np.cos(ha), np.zeros([len(ha)]),
                        np.zeros([len(ha)]), np.zeros([len(ha)]), np.ones([len(ha)])])
 
-        # re-order the array from a matriz of array to array of matrix
-        print('r3 ', R3.shape)
+        # re-order the array from "a matriz of array" to "array of matrix"
         R3 = np.swapaxes(R3, 1, 0)
-        print('r3 ', R3.shape)
-        lambda_num = c / obs_freq
+        lambda_num = c * (u.m / u.s) / obs_freq
         # operate every element in the array
         uvw = np.apply_along_axis(self.apply_rotation_matrix, 1, R3, R4, R2, lambda_num)
-        # re-order the visibilities to be easier to scattering, transposing to get u positions array, 
-        # v positions array and w positions array
+        # re-order the visibilities to be easier to scattering, transposing to get:
+        #   u positions array, v positions array and w positions array
         m, n, l = np.shape(uvw)
         uvw = uvw.transpose([1, 0, 2]).reshape(n, m * l)
         imagesize = len(self.sky_image)
@@ -141,24 +157,12 @@ class Interferometer:
 
     def transform_fft(self):
         # transform with fast fourier transform in 2 dimensions
-        fft_image = np.fft.fft2(self.sky_image)
+        complex_sky_image = self.sky_image + 1j * np.zeros_like(self.sky_image)
+        fft_image = np.fft.fft2(complex_sky_image)
         self.fft_image = fft_image
 
     def transform_nufft(self):
-        m, n = np.shape(self.sky_image)
-        uvw = self.visibilities.UVW.transpose()
-        uvw = uvw[:, :2]
-        uvw = uvw[:, ::-1]
-        uvw = uvw * np.pi / (np.max(np.abs(uvw)))  # convert to radians
-        #
-        NufftObj = NUFFT()
-        Nd = (m, n)  # image size
-        Kd = (1024, 1024)  # k-space size
-        Jd = (10, 10)
-        NufftObj.plan(uvw, Nd, Kd, Jd)
-
-        # values = NufftObj.forward(self.sky_image)
-        ###############################
+        # Transform from lambda to 2pi range
         u = self.visibilities.UVW[0] * np.pi / self.visibilities.max_uv_coordinate
         v = self.visibilities.UVW[1] * np.pi / self.visibilities.max_uv_coordinate
 
@@ -166,13 +170,13 @@ class Interferometer:
 
         # the 2D transform outputs f array of shape (N1, N2)
         f = finufft.nufft2d2(v, u, complex_sky_image, eps=1e-12)
+        self.visibilities.set_value(f * cds.Jy)
 
-        self.visibilities.set_value(f)
-
-    def inverse_transform_fft(self):
+    def inverse_transform_fft(self, usefft):
         dirty_image = np.fft.ifftshift(self.gridded_vo)
         dirty_image = np.fft.ifft2(dirty_image)
-        dirty_image = np.fft.fftshift(dirty_image)
+        if not usefft:
+            dirty_image = np.fft.fftshift(dirty_image)
         self.dirty_image = dirty_image
 
     def bilinear_interpolation(self):
@@ -192,7 +196,7 @@ class Interferometer:
         uv_value = np.apply_along_axis(self.calculate_uv_value, 0, [list_j, list_i, l_alpha, l_beta])
 
         # values are created for the visibilities object
-        self.visibilities.set_value(uv_value)
+        self.visibilities.set_value(uv_value * cds.Jy)
 
     def calculate_uv_value(self, data: np.ndarray = None):
         # current u position = data[0]
@@ -227,13 +231,13 @@ class Interferometer:
         yg = yg.reshape(m * n)
         #
         result = np.apply_along_axis(self.test_function_2, 1, uvw, sky_image, yg, xg)
-        self.visibilities.set_value(result)
+        self.visibilities.set_value(result * cds.Jy)
 
     @jit(forceobj=True)
     def test_function_2(self, uvw, sky_image, j_set, i_set):
         value = (uvw[0] * i_set) + (uvw[1] * j_set)
         e = np.cos(value) + 1j * np.sin(value)
-        new_visibility = sky_image * (-e)
+        new_visibility = sky_image * (e)
         new_visibility = np.sum(new_visibility)
         return new_visibility
 
@@ -264,8 +268,8 @@ class Interferometer:
         self.scheme_weights(gridded_weights, z, pos_u_index, pos_v_index, scheme, robust)
 
         # Gridding visibilities and weights with a scheme
-        gridded_weights = np.zeros((imagesize, imagesize))
-        gridded_Vo = np.zeros((imagesize, imagesize)) + 1.0j * np.zeros((imagesize, imagesize))
+        gridded_weights = np.zeros((imagesize, imagesize)) * (cds.Jy / cds.Jy)
+        gridded_Vo = np.zeros((imagesize, imagesize)) + 1.0j * np.zeros((imagesize, imagesize)) * cds.Jy
 
         for k in range(0, z):
             j = int(np.round(uvw[k][0] / deltau) + imagesize / 2)
@@ -297,20 +301,28 @@ class Interferometer:
                 self.visibilities.weight[k] /= (1.0 + gridded_weights[pos_v_index[k]][pos_u_index[k]] * f2)
 
     def run(self, telescope_lat: float = None, source_decl: float = None, ha_start: float = None,
-            ha_end: float = None, dt: int = None, obs_freq: float = None, usefft: bool = None, rms_parameters: tuple = None):
+            ha_end: float = None, dt: int = None, obs_freq: float = None, usefft: bool = None):
         # toma: la imagen de entrada(sky_image), el objeto visibilities(self)
+
+        # convert units
+        telescope_lat = telescope_lat.to(u.rad)
+        source_decl = source_decl.to(u.rad)
+        ha_start = ha_start.to(u.rad)
+        ha_end = ha_end.to(u.rad)
+        dt = dt.to(u.deg)
+        dt = dt.to(u.rad)
+        obs_freq = obs_freq.to(u.Hz)
 
         # uv positions
         ha = self.compute_hour_angle(ha_start, ha_end, dt)
         self.create_uv_position(telescope_lat, source_decl, ha, obs_freq)
-
-        # image with fft
-        self.transform_fft()
-        self.fft_image = np.fft.fftshift(self.fft_image)
-
         # values of visibilities
         if usefft:
+            # image with fft
+            self.transform_fft()
+            self.fft_image = np.fft.fftshift(self.fft_image)
             self.bilinear_interpolation()
+            #self.fourier_series()
 
         else:
             self.transform_nufft()
@@ -330,14 +342,11 @@ class Interferometer:
 
         sqrt_root = self.antenna_number * (self.antenna_number - 1)
         sqrt_root = math.sqrt(sqrt_root * integration_time * bandwidth)
-        self.sigma = 2 * k * system_temperature / (self.antenna_area * sqrt_root)
-        self.sigma *= 1e26
-        print('st: ', system_temperature, 'it: ', integration_time, 'bw: ', bandwidth, 'k: ', k, 'aa:', self.antenna_area)
-        print('sigma: ', self.sigma)
+        self.sigma = 2 * (k * u.J / u.K) * system_temperature / (self.antenna_area * sqrt_root)
+        self.sigma = self.sigma.to(u.Jy)
 
     def add_noise(self):
-        shape_values = self.visibilities.value.shape
-        real_noise = np.random.normal(0, self.sigma, shape_values)
-        imaginary_noise = np.random.normal(0, self.sigma, shape_values)
-        self.noise = real_noise + (1j * imaginary_noise)
-        self.visibilities.value += self.noise
+        shape_values = self.visibilities.uv_value.shape
+        real_noise = np.random.normal(0, self.sigma.value, shape_values) * self.sigma.unit
+        imaginary_noise = np.random.normal(0, self.sigma.value, shape_values) * self.sigma.unit * 1j
+        self.noise = real_noise + imaginary_noise

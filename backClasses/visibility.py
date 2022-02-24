@@ -16,7 +16,7 @@ class Visibility:
             self.UVW = UVW
         self.number_of_visibilities = len(UVW[0])
         self.max_uv_coordinate = self.max_uv_coordinate()
-        self.weight = np.ones(self.number_of_visibilities)
+        self.weight = np.ones(self.number_of_visibilities) * (cds.Jy / cds.Jy)
         if frequency is None:
             raise ValueError('frequency has not been initialized')
         else:
