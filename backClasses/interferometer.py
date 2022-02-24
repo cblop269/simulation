@@ -153,7 +153,6 @@ class Interferometer:
         v = self.visibilities.UVW[1] * np.pi / self.visibilities.max_uv_coordinate
 
         complex_sky_image = self.sky_image + 1j * np.zeros_like(self.sky_image)
-
         # the 2D transform outputs f array of shape (N1, N2)
         f = finufft.nufft2d2(v, u, complex_sky_image, eps=1e-12)
         self.visibilities.set_value(f * cds.Jy)
