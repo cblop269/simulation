@@ -97,12 +97,6 @@ class Interferometer:
         # obs_freq is observing frequency in Hz (continuum ??)
         # telescope_lat in degrees. Example -23
         # source_decl Source declination in degrees. For instance 18
-        '''decl_rad = 0
-        lat = 0
-        if telescope_lat is not None and source_decl is not None:
-            decl_rad = source_decl * np.pi / 180
-            lat = (-90 + telescope_lat) * np.pi / 180
-        '''
 
         # Rotate around x to rise w -Dec degrees
         R2 = np.array([[1, 0, 0],
@@ -146,14 +140,6 @@ class Interferometer:
         except IOError as e:
             print("I/O error({0}): {1}".format(e.errno, e.strerror))
             sys.exit()
-
-    def write_image(self, data, route: str = None, name: str = None):
-        print('------>', route, '-------->', name)
-        '''data_folder = Path("source_data/text_files/")
-        file_to_open = data_folder / "raw_data.txt"
-        f = open(file_to_open)
-        print(f.read())'''
-        fits.writeto(route + name + '.fits', data)
 
     def transform_fft(self):
         # transform with fast fourier transform in 2 dimensions
@@ -326,20 +312,9 @@ class Interferometer:
 
         else:
             self.transform_nufft()
-            # self.fourier_series()
 
-        # add noise
-        if rms_parameters is not None:
-            self.get_noise_level(rms_parameters[0], rms_parameters[1], rms_parameters[2])
-            self.add_noise()
-            if rms_parameters[1] == 0 or rms_parameters[2] == 0:
-                raise ValueError('invalid parameter, integration time and bandwidth must not be 0')
-
-        self.gridder(len(self.fft_image), 1, 0)
-        self.inverse_transform_fft()
 
     def get_noise_level(self, system_temperature, integration_time, bandwidth):
-
         sqrt_root = self.antenna_number * (self.antenna_number - 1)
         sqrt_root = math.sqrt(sqrt_root * integration_time * bandwidth)
         self.sigma = 2 * (k * u.J / u.K) * system_temperature / (self.antenna_area * sqrt_root)
