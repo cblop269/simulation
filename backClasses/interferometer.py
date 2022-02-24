@@ -18,8 +18,9 @@ from backClasses.baseline import Baseline
 
 class Interferometer:
 
-    def __init__(self, antenna_route: str = None):  # , telescope_lat, source_decl, ha_start, ha_end, dt, obs_freq):
-        self.sigma = None
+    def __init__(self, antenna_route: str = None):
+        self.antenna_pos = None
+        self.sigma = 0 * cds.Jy
         self.antenna_number = None
         self.antenna_area = None
         self.deltay = None
@@ -30,15 +31,13 @@ class Interferometer:
         self.gridded_image = None
         self.sky_image = None
         self.fft_image = None
-        self.delta_X = None
-        self.delta_U = None
         self.visibilities = None
         if antenna_route is not None:
             # assignment of antenna position
-            self.antenna_pos = self.read_antenna_config(antenna_route)
+            self.read_antenna_config(antenna_route)
             # assignment of baseline
-            baseline = self.compute_baselines()
-            self.baseline = Baseline(baseline, self.antenna_pos)
+            self.compute_baselines()
+            #self.baseline = Baseline(baseline, self.antenna_pos)
         else:
             raise ValueError('antenna route has not been initialized')
 
