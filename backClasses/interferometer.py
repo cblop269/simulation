@@ -2,13 +2,12 @@ import math
 import sys
 import numpy as np
 import astropy.units as u
+from astropy.units import cds
 from time import time
 from numba import jit
 from scipy.constants import c
 from scipy.constants import k
-from math import floor
 from astropy.io import fits
-from scipy import interpolate
 from pynufft import NUFFT
 from pathlib import Path
 import finufft
