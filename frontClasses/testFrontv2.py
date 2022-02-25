@@ -10,6 +10,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from frontClasses.plotter import Plotter
 from backClasses.interferometer import Interferometer
 from backClasses.filemanager import FileManager
+from backClasses.gridder import Gridder
 
 
 class Window(tk.Tk):
@@ -385,17 +386,19 @@ class Window(tk.Tk):
                 raise ValueError('invalid parameter, integration time and bandwidth must not be 0')
             # call the function of the interferometer
             self.interferometer.get_noise_level(system_temperature, integration_time, bandwidth)
+
         # fuctions to obtain the dirty image
         self.interferometer.add_noise()
-        self.interferometer.gridder(len(self.interferometer.sky_image), 1, 0)
-        self.interferometer.inverse_transform_fft(usefft)
+        gridder = Gridder(self.interferometer.visibilities, self.interferometer.noise, len(self.interferometer.sky_image), 1, 0)
+        self.interferometer.inverse_transform_fft(usefft, gridder.gridded_vo)
+
         # get the inputs to draw plots
         deltau = self.interferometer.visibilities.deltau
         deltav = self.interferometer.visibilities.deltav
         deltax = self.interferometer.visibilities.deltax
         deltay = self.interferometer.visibilities.deltay
 
-        grid_image = self.interferometer.gridded_vo.value
+        grid_image = gridder.gridded_vo.value
         dirty_image = self.interferometer.dirty_image.value
         visibilities = np.empty([3, len(self.interferometer.visibilities.UVW[0])])
         visibilities[0] = self.interferometer.visibilities.UVW[0]
