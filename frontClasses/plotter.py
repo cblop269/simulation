@@ -132,6 +132,8 @@ class Plotter:
             origin = None #'lower'
 
         im = subplot.imshow(image, extent=extent, origin=origin, aspect='equal')
+        subplot.ticklabel_format(axis="x", style="sci", scilimits=(0, 0))
+        subplot.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
         #subplot.tick_params(axis='both', which='major', labelsize=4)
         #subplot.tick_params(axis='both', which='minor', labelsize=4)
         return im
@@ -148,7 +150,8 @@ class Plotter:
         border_space = 1.1
 
         im = subplot.scatter(horizontal_values, vertical_values, s=dot_size, c=value)
-        subplot.ticklabel_format(style='sci')
+        subplot.ticklabel_format(axis="x", style="sci", scilimits=(0, 0))
+        subplot.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
         subplot.set_aspect('equal', 'box')
 
         if h_limit is not None and v_limit is not None:

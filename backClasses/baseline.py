@@ -6,7 +6,7 @@ class Baseline:
     def __init__(self, B, antpos):
         self.baselines = B
         self.antenna = antpos
-        #self.max_baseline = self.calculate_max()
+        self.max_baseline = self.calculate_max()
 
     def search_antenna(self, baseline):
         pair = self.map[baseline[0], baseline[1], baseline[2]]
@@ -15,8 +15,5 @@ class Baseline:
         return [antenna1, antenna2]
 
     def calculate_max(self):
-        baseline_list = (np.swapaxes(self.baselines, 1, 0))
-        magnitude_list = np.empty([0])
-        for i in baseline_list:
-            magnitude_list = np.append(magnitude_list, np.linalg.norm(i))
-        return np.max(magnitude_list)
+        baseline_list = np.apply_along_axis(np.linalg.norm, 0, self.baselines)
+        return np.max(baseline_list)
