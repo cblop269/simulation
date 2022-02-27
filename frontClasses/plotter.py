@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 
 
 class Plotter:
-    def __init__(self):
-        self.figureA, self.axA = plt.subplots(1, 2, figsize=(9, 5))
+    def __init__(self, nrows, ncols, width, height, w:float=None, h:float=None, l:float=None, t:float=None, b:float=None):
+        '''self.figureA, self.axA = plt.subplots(1, 2, figsize=(9, 5))
         self.figureB, self.axB = plt.subplots(1, 3, figsize=(14, 5))
         self.figureD, self.axD = plt.subplots(2, 1, figsize=(9, 6))
         self.figureE, self.axE = plt.subplots(1, 1, figsize=(7, 6))
@@ -16,25 +16,15 @@ class Plotter:
         # self.figure.subplots_adjust(hspace=1.5)
         self.figureA.subplots_adjust(wspace=.5, left=0.08, bottom=0.01)
         self.figureB.subplots_adjust(wspace=.5, left=0.08, bottom=0.01)
-        self.figureD.subplots_adjust(hspace=.5, left=0.1, top=0.9)
+        self.figureD.subplots_adjust(hspace=.5, left=0.1, top=0.9)'''
+        self.figure, self.ax = plt.subplots(nrows, ncols, figsize=(width, height))
+        self.figure.subplots_adjust(wspace=w, hspace=h, left=l, top=t, bottom=b)
+
         # define colorbars
         self.cb_si = None
-        #self.cb_ti = None
         self.cb_vi = None
         self.cb_gi = None
         self.cb_di = None
-
-    def draw_inputs(self, canvas, image, antenna_pos):
-        if self.cb_si is not None:
-            self.cb_si.remove()
-        # Sky Image
-        im = self.draw_image(self.axA[0], image, 'Sky Image', None, None)
-        self.cb_si = self.figureA.colorbar(im, ax=self.axA[0], orientation='horizontal', pad=0.1)
-        # Antenna Configuration
-        self.draw_scatter(self.axA[1], antenna_pos[:, 0], antenna_pos[:, 1], None, 'Antenna Configuration', 'x (m)',
-                          'y (m)', None, None, 1)
-
-        canvas.draw()
 
     def draw_noise(self, canvas, positionUV, noise_value, value, deltauv):
         self.axD[0].cla()
@@ -65,26 +55,18 @@ class Plotter:
 
         # clear colorbars
         if self.cb_vi is not None and self.cb_gi is not None and self.cb_di is not None:
-            #self.cb_ti.remove()
             self.cb_vi.remove()
             self.cb_gi.remove()
             self.cb_di.remove()
 
-        # FFT Image
-        '''m, n = fft_image.shape
-        limit_hor = deltau * n / 2
-        limit_vert = deltav * m / 2
-        im1 = self.draw_image(self.axB[0], fft_image, 'Transform Image', 'u (λ)', 'v (λ)', limit_hor,
-                        limit_vert)
-        '''
         # Visibilities
         horizontal_values = -visibilities[0] #* deltau
         vertical_values = visibilities[1] #* deltav
         uv_values = visibilities[2]
         limit = max(np.max(np.abs(visibilities[0])), np.max(np.abs(visibilities[1])))
-        im2 = self.draw_scatter(self.axB[0], horizontal_values, vertical_values, uv_values,
+        self.draw_scatter(self.axB[0], horizontal_values, vertical_values, uv_values,
                                 'Visibilities', 'u (λ)', 'v (λ)', limit, limit, 0.01)
-        self.draw_scatter(self.axE, horizontal_values, vertical_values, 'black', '', 'u (λ)', 'v (λ)', limit,
+        im2 = self.draw_scatter(self.axE, horizontal_values, vertical_values, uv_values, '', 'u (λ)', 'v (λ)', limit,
                           limit, 2)
 
         # Grid Image
@@ -98,19 +80,16 @@ class Plotter:
         m, n = dirty_image.shape
         limit_hor = deltax * n / 2
         limit_vert = deltay * m / 2
-        im4 = self.draw_image(self.axB[2], dirty_image, 'Dirty Image', 'y (v)', 'x (v)', limit_hor, limit_vert)
-        self.draw_image(self.axG, dirty_image, '', 'y (v)', 'x (v)', limit_hor, limit_vert)
+        self.draw_image(self.axB[2], dirty_image, 'Dirty Image', 'y (v)', 'x (v)', limit_hor, limit_vert)
+        im4 = self.draw_image(self.axG, dirty_image, '', 'y (v)', 'x (v)', limit_hor, limit_vert)
 
         # draw colorbars
-        #self.cb_ti = self.figureB.colorbar(im1, ax=self.axB[0], orientation='horizontal', pad=0.2)
-
-        #self.cb_vi = self.figureB.colorbar(im2, ax=self.axE, fraction=0.046, pad=0.04)
+        self.cb_vi = self.figureB.colorbar(im2, ax=self.axE, fraction=0.046, pad=0.04)
         #self.cb_gi = self.figureB.colorbar(im3, ax=self.axF, fraction=0.046, pad=0.04)
-        #self.cb_di = self.figureB.colorbar(im4, ax=self.axG, fraction=0.046, pad=0.04)
-        self.cb_vi = self.figureB.colorbar(im2, ax=self.axB[0], orientation='horizontal', pad=0.15)
+        self.cb_di = self.figureB.colorbar(im4, ax=self.axG, fraction=0.046, pad=0.04)
+        #self.cb_vi = self.figureB.colorbar(im2, ax=self.axB[0], orientation='horizontal', pad=0.15)
         self.cb_gi = self.figureB.colorbar(im3, ax=self.axB[1], orientation='horizontal', pad=0.15)
-        self.cb_di = self.figureB.colorbar(im4, ax=self.axB[2], orientation='horizontal', pad=0.15)
-        #self.cb_ti.set_label('value applying log(|uv value| + 1)')
+        #self.cb_di = self.figureB.colorbar(im4, ax=self.axB[2], orientation='horizontal', pad=0.15)
         self.cb_vi.set_label('value applying log(|uv value| + 1)')
         self.cb_gi.set_label('value applying log(|uv value| + 1)')
         self.cb_di.set_label('value applying log(|uv value| + 1)')
@@ -134,8 +113,6 @@ class Plotter:
         im = subplot.imshow(image, extent=extent, origin=origin, aspect='equal')
         subplot.ticklabel_format(axis="x", style="sci", scilimits=(0, 0))
         subplot.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-        #subplot.tick_params(axis='both', which='major', labelsize=4)
-        #subplot.tick_params(axis='both', which='minor', labelsize=4)
         return im
 
     def draw_scatter(self, subplot, horizontal_values: np.ndarray, vertical_values: np.ndarray,
