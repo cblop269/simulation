@@ -27,7 +27,7 @@ class Gridder:
             # Selecting a scheme for weights
             weight = self.scheme_weights(z, u_pos, v_pos, scheme, robust, weight)
         #
-        self.grid_with_scheme(z, u_pos, v_pos, deltau, deltav, weight, imagesize, uv_value)
+        self.grid_visibilities(z, u_pos, v_pos, deltau, deltav, weight, imagesize, uv_value)
 
     def grid_robust(self, z, u, v, deltau, deltav, weight, imagesize):
         for k in range(0, z):
@@ -51,7 +51,7 @@ class Gridder:
         return weight
 
 
-    def grid_with_scheme(self, z, u, v, deltau, deltav, weight, imagesize, uv_value):
+    def grid_visibilities(self, z, u, v, deltau, deltav, weight, imagesize, uv_value):
         # Gridding visibilities and weights with a scheme
         gridded_weights = np.zeros((imagesize, imagesize)) * (cds.Jy / cds.Jy)
         gridded_Vo = np.zeros((imagesize, imagesize)) + 1.0j * np.zeros((imagesize, imagesize)) * cds.Jy

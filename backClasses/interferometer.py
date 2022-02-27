@@ -14,6 +14,7 @@ import finufft
 
 from backClasses.visibility import Visibility
 from backClasses.baseline import Baseline
+from backClasses.fouriertransformer import FT
 
 
 class Interferometer:
@@ -141,36 +142,12 @@ class Interferometer:
             sys.exit()
 
     @jit
-    def transform_fft(self):
-        # transform with fast fourier transform in 2 dimensions
-        complex_sky_image = self.sky_image + 1j * np.zeros_like(self.sky_image)
-        fft_image = np.fft.fft2(complex_sky_image)
-        self.fft_image = fft_image
-
-    def transform_nufft(self):
-        # Transform from lambda to 2pi range
-        u = self.visibilities.UVW[0] * np.pi / self.visibilities.max_uv_coordinate
-        v = self.visibilities.UVW[1] * np.pi / self.visibilities.max_uv_coordinate
-
-        complex_sky_image = self.sky_image + 1j * np.zeros_like(self.sky_image)
-        # the 2D transform outputs f array of shape (N1, N2)
-        f = finufft.nufft2d2(v, u, complex_sky_image, eps=1e-12)
-        self.visibilities.set_value(f * cds.Jy)
-
-    def inverse_transform_fft(self, usefft, gridded_vo):
-        dirty_image = np.fft.ifftshift(gridded_vo)
-        dirty_image = np.fft.ifft2(dirty_image)
-        if not usefft:
-            dirty_image = np.fft.fftshift(dirty_image)
-        self.dirty_image = dirty_image
-
-    @jit
     def bilinear_interpolation(self):
         u = self.visibilities.UVW[0]
         v = self.visibilities.UVW[1]
         # other variables
         N = max(len(self.fft_image[0]), len(self.fft_image))
-        deltau = - self.visibilities.delatu
+        deltau = - self.visibilities.deltau
 
         # find the list of j and i equivalent to one of the four points, Q11 points
         list_j = np.floor(u / deltau) + ((N - 1) / 2)  # horizontal
@@ -201,37 +178,13 @@ class Interferometer:
         uv_value = (data[3] * fxy2) + ((1 - data[3]) * fxy1)
         return uv_value
 
-    @jit #(forceobj=True)
-    def fourier_series(self):
-        m, n = np.shape(self.sky_image)
-        uvw = self.visibilities.UVW.transpose()
-        uvw = uvw[:, :2]
-
-        # convert to radians
-        uvw = uvw * np.pi / (np.max(np.abs(uvw)))
-        #
-        sky_image = self.sky_image.reshape(m * n)
-        x = np.linspace(- n / 2, (n / 2) - 1, n)
-        y = np.linspace(- m / 2, (m / 2) - 1, m)
-        xg, yg = np.meshgrid(x, y)
-        xg = xg.reshape(m * n)
-        yg = yg.reshape(m * n)
-        #
-        result = np.apply_along_axis(self.calculate_uv_value_FS, 1, uvw, sky_image, yg, xg)
-        self.visibilities.set_value(result * cds.Jy)
-
-    @jit
-    def calculate_uv_value_FS(self, uvw, sky_image, j_set, i_set):
-        value = (uvw[0] * i_set) + (uvw[1] * j_set)
-        e = np.cos(value) + 1j * np.sin(value)
-        new_visibility = sky_image * (e)
-        new_visibility = np.sum(new_visibility)
-        return new_visibility
+    #@jit(forceobj=True)
 
     def run(self, telescope_lat: float = None, source_decl: float = None, ha_start: float = None,
             ha_end: float = None, dt: int = None, obs_freq: float = None, usefft: bool = None):
         # toma: la imagen de entrada(sky_image), el objeto visibilities(self)
 
+        ft = FT()
         # convert units
         telescope_lat = telescope_lat.to(u.rad)
         source_decl = source_decl.to(u.rad)
@@ -247,13 +200,16 @@ class Interferometer:
         # values of visibilities
         if usefft:
             # image with fft
-            self.transform_fft()
-            self.fft_image = np.fft.fftshift(self.fft_image)
+            self.fft_image = ft.transform_fft(self.sky_image) # self.transform_fft()
             self.bilinear_interpolation()
             #self.fourier_series()
-
+            # delatu
         else:
-            self.transform_nufft()
+            u_pos = self.visibilities.UVW[0]
+            v_pos = self.visibilities.UVW[1]
+            max_uv = self.visibilities.max_uv_coordinate
+            self.visibilities.set_value(ft.transform_nufft(self.sky_image, u_pos, v_pos, max_uv))
+
 
     def get_noise_level(self, system_temperature, integration_time, bandwidth):
         sqrt_root = self.antenna_number * (self.antenna_number - 1)

@@ -11,7 +11,7 @@ from frontClasses.plotter import Plotter
 from backClasses.interferometer import Interferometer
 from backClasses.filemanager import FileManager
 from backClasses.gridder import Gridder
-
+from backClasses.fouriertransformer import FT
 
 class Window(tk.Tk):
 
@@ -388,9 +388,11 @@ class Window(tk.Tk):
             self.interferometer.get_noise_level(system_temperature, integration_time, bandwidth)
 
         # fuctions to obtain the dirty image
+        ft = FT()
         self.interferometer.add_noise()
         gridder = Gridder(self.interferometer.visibilities, self.interferometer.noise, len(self.interferometer.sky_image), 1, 0)
-        self.interferometer.inverse_transform_fft(usefft, gridder.gridded_vo)
+        self.interferometer.dirty_image = ft.transform_ifft(usefft, gridder.gridded_vo)
+        #self.interferometer.inverse_transform_fft(usefft, gridder.gridded_vo)
 
         # get the inputs to draw plots
         deltau = self.interferometer.visibilities.deltau
