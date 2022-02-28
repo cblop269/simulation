@@ -178,28 +178,20 @@ class FrameA(tk.Frame):
         self.btn_source.grid(row=0, column=0, padx=20, pady=20)
         self.btn_observatory.grid(row=0, column=1, padx=20, pady=20)
 
-    def charge_sky_image(self, interferometer: Interferometer = None, route: str = None):
-        print('Funco ', route)
+    def charge_sky_image(self, route: str = None):
         if route is None:
             route = tk.filedialog.askopenfilename()
-            interferometer.read_image(route)
-            self.filename_source.set(self.get_file_name(route))
-            self.plotter.draw_inputs(self.canvasA, interferometer.sky_image, interferometer.antenna_pos)
-        else:
-            interferometer.read_image(route)
-            self.filename_source.set(self.get_file_name(route))
+        self.interferometer.read_image(route)
+        self.filename_source.set(self.get_file_name(route))
+        self.draw_inputs(self.interferometer.sky_image, self.interferometer.antenna_pos)
 
-    def charge_antenna_config(self, interferometer: Interferometer = None, route: str = None):
-        print('Funco ', route)
+    def charge_antenna_config(self, route: str = None):
         if route is None:
             route = tk.filedialog.askopenfilename()
-            interferometer.read_antenna_config(route)
-            self.filename_antenna.set(self.get_file_name(route))
-            interferometer.compute_baselines()
-            self.plotter.draw_inputs(self.canvasA, interferometer.sky_image, interferometer.antenna_pos)
-        else:
-            interferometer.read_antenna_config(route)
-            self.filename_antenna.set(self.get_file_name(route))
+        self.interferometer.read_antenna_config(route)
+        self.filename_antenna.set(self.get_file_name(route))
+        self.interferometer.compute_baselines()
+        self.draw_inputs(self.interferometer.sky_image, self.interferometer.antenna_pos)
 
     def get_file_name(self, filepath):
         filepath = filepath.split('/')
@@ -230,9 +222,14 @@ class FrameA(tk.Frame):
         if self.colorbar is not None:
             self.colorbar.remove()
         # Sky Image
-        im = self.plotter.draw_image(self.plotter.ax[0], image, 'Sky Image', None, None)
-        self.colorbar = self.plotter.figure.colorbar(im, ax=self.plotter.ax[0], orientation='horizontal', pad=0.1)
+        if image is not None:
+            im = self.plotter.draw_image(self.plotter.ax[0], image, 'Sky Image', None, None)
+            self.colorbar = self.plotter.figure.colorbar(im, ax=self.plotter.ax[0], orientation='horizontal', pad=0.1)
         # Antenna Configuration
-        self.plotter.draw_scatter(self.plotter.ax[1], antenna_pos[:, 0], antenna_pos[:, 1], None, 'Antenna Configuration',
-                                  'x (m)', 'y (m)', None, None, 1)
-        self.canvasA.draw()
+        if antenna_pos is not None:
+            self.plotter.draw_scatter(self.plotter.ax[1], antenna_pos[:, 0], antenna_pos[:, 1], None, 'Antenna Configuration',
+                                      'x (m)', 'y (m)', None, None, 1)
+            self.canvasA.draw()
+
+    def set_interferometer(self, interferometer):
+        self.interferometer = interferometer

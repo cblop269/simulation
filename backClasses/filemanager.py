@@ -58,8 +58,8 @@ class FileManager:
         # header
         # delta u: delta v: number of antenna: system temperature: integration time:
         # value real: value imaginary: weight: noise real: noise imaginary: frequency:
-        deltau = 'Delta U:' + str(interferometer.deltau)
-        deltav = 'Delta V:' + str(interferometer.deltav)
+        deltau = 'Delta U:' + str(interferometer.visibilities.deltau)
+        deltav = 'Delta V:' + str(interferometer.visibilities.deltav)
         antenna_number = 'N° Antenna:' + str(interferometer.antenna_number)
         syst_temp = 'System Temperature:' + str(interferometer.antenna_number)
         integration_time = 'Integration Time:' + str(interferometer.antenna_number)
@@ -71,12 +71,12 @@ class FileManager:
         myfile = open(route + '/' + name + '.txt', 'w')
         myfile.write(header1)
         myfile.write(header2)
-        for z in range(0, len(interferometer.visibilities.value)):
+        for z in range(0, len(interferometer.visibilities.uv_value)):
             u = str(interferometer.visibilities.UVW[0][z])
             v = str(interferometer.visibilities.UVW[1][z])
             w = str(interferometer.visibilities.UVW[2][z])
-            valueR = str((interferometer.visibilities.value.value[z]).real)
-            valueI = str((interferometer.visibilities.value.value[z]).imag)
+            valueR = str((interferometer.visibilities.uv_value.value[z]).real)
+            valueI = str((interferometer.visibilities.uv_value.value[z]).imag)
             weight = str(1)
             noiseR = str((interferometer.noise.value[z]).real)
             noiseI = str((interferometer.noise.value[z]).imag)

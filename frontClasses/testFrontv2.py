@@ -26,19 +26,8 @@ class Window(tk.Tk):
         # self.minsize(1200, 600)
         #
         self.interferometer = Interferometer('/home/seba/Desktop/alma.C34-2.cfg')
-        '''self.filename_antenna = tk.StringVar()
-        self.filename_source = tk.StringVar()
-        self.filename_antenna.set(self.get_file_name('/home/seba/Desktop/alma.C34-2.cfg'))
-        self.filename_source.set(self.get_file_name('/home/seba/Downloads/cameraman(1).fits'))'''
-        #
         self.create_sub_menu()
         self.create_widgets()
-
-        '''self.charge_sky_image('/home/seba/Downloads/cameraman(1).fits')
-        self.charge_antenna_config('/home/seba/Desktop/alma.C34-2.cfg')
-        #
-        self.plotter.draw_inputs(self.canvasA, self.interferometer.sky_image, self.interferometer.antenna_pos)'''
-        self.frameA.draw_inputs(self.interferometer.sky_image, self.interferometer.antenna_pos)
 
     def create_widgets(self):
         # Style
@@ -50,8 +39,9 @@ class Window(tk.Tk):
         #
         self.notebook = tk.ttk.Notebook(self)
         self.frameA = FrameA(self.notebook)
-        self.frameA.charge_antenna_config(self.interferometer, '/home/seba/Desktop/alma.C34-2.cfg')
-        self.frameA.charge_sky_image(self.interferometer, '/home/seba/Downloads/cameraman(1).fits')
+        self.frameA.set_interferometer(self.interferometer)
+        self.frameA.charge_antenna_config('/home/seba/Desktop/alma.C34-2.cfg')
+        self.frameA.charge_sky_image('/home/seba/Downloads/cameraman(1).fits')
         self.frameB = FrameB(self.notebook)
         self.frameNoise = FrameC(self.notebook)
         self.frameExport = FrameD(self.notebook)
@@ -67,20 +57,15 @@ class Window(tk.Tk):
         self.notebook.add(self.frameG, text="Dirty Image")
         self.notebook.pack(padx=20, pady=20)
         self.notebook.select(self.frameA)
-        #
-        # ///////////////////////////////////////////////////////////////////////////////////////////
         #   Frames
         self.frame3 = tk.Frame(self, bg="gray26")
+        self.frame3.pack(pady=0, padx=0)
 
         #   Buttons
         # run button
         self.run_button = tk.Button(self.frame3, text='Run', width=10)
         self.run_button.config(command=self.run)  # self.draw_graphic_f, state=tk.DISABLED)
-
-        # placing widgets
-        self.frame3.pack(pady=0, padx=0)
         self.run_button.grid(row=0, column=0, padx=0, pady=0)
-
 
     def create_sub_menu(self):
         self.my_menu = tk.Menu(self, bg="gray51")
@@ -140,9 +125,6 @@ class Window(tk.Tk):
         self.frameF.draw_plots_results(option=2, grid_image=grid_image, uv_delta=[deltau, deltav])
         self.frameG.draw_plots_results(option=3, dirty_image=dirty_image, xy_delta=[deltax, deltay])
 
-        #self.canvasE.draw()
-        #self.canvasF.draw()
-        #self.canvasG.draw()
         # change to the plot view
         self.notebook.select(self.frameB)
 
@@ -151,6 +133,5 @@ class Window(tk.Tk):
         # tk.messagebox.showwarning("Warning", "Fill in all the spaces with numerical values")
         self.frameNoise.draw_noise(self.interferometer.visibilities.UVW[:2], self.interferometer.noise,
                                    self.interferometer.visibilities.uv_value)
-        self.frameExport.btn_uv.config(state=tk.NORMAL)
-        self.frameExport.btn_gi.config(state=tk.NORMAL)
-        self.frameExport.btn_di.config(state=tk.NORMAL)
+
+        self.frameExport.enable_export(self.interferometer, grid_image, dirty_image)

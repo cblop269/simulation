@@ -31,7 +31,7 @@ class FrameD(tk.Frame):
         self.set_labels()
         self.set_variables()
         self.set_input_entries()
-        self.set_buttons(None, None)
+        self.set_buttons()
 
     def set_labels(self):
         #   labels
@@ -70,13 +70,24 @@ class FrameD(tk.Frame):
         self.imput_export_di.grid(row=2, column=0, pady=20, padx=20)
 
 
-    def set_buttons(self, interferometer, gridder):
+    def set_buttons(self):
         self.btn_uv = tk.Button(self.frame5, text='Export', width=10)
-        self.btn_uv.config(state=tk.DISABLED, command=lambda: self.writer.write_visibilities(interferometer, self.label_route_uv.cget("text"), self.default_export_uv.get()))
+        self.btn_uv.config(state=tk.DISABLED)
         self.btn_gi = tk.Button(self.frame6, text='Export', width=10)
-        self.btn_gi.config(state=tk.DISABLED, command=lambda: self.writer.write_array(gridder.gridded_vo, self.label_route_gi.cget("text"), self.default_export_gi.get()))
+        self.btn_gi.config(state=tk.DISABLED)
         self.btn_di = tk.Button(self.frame7, text='Export', width=10)
-        self.btn_di.config(state=tk.DISABLED, command=lambda: self.writer.write_image(interferometer.dirty_image, self.label_route_di.cget("text"), self.default_export_di.get()))
+        self.btn_di.config(state=tk.DISABLED)
         self.btn_uv.grid(row=3, column=0, pady=20, padx=20)
         self.btn_gi.grid(row=3, column=0, pady=20, padx=20)
         self.btn_di.grid(row=3, column=0, pady=20, padx=20)
+
+    def enable_export(self, interferometer, gridded_vo, dirty_image):
+        self.btn_uv.config(state=tk.NORMAL)
+        self.btn_uv.config(command=lambda: self.writer.write_visibilities(interferometer, self.lbl_route_uv.cget("text")
+                                                                          , self.default_export_uv.get()))
+        self.btn_gi.config(state=tk.NORMAL)
+        self.btn_gi.config(command=lambda: self.writer.write_array(gridded_vo, self.lbl_route_gi.cget("text"),
+                                                                   self.default_export_gi.get()))
+        self.btn_di.config(state=tk.NORMAL)
+        self.btn_di.config(command=lambda: self.writer.write_image(dirty_image, self.lbl_route_di.cget("text"),
+                                                                   self.default_export_di.get()))
