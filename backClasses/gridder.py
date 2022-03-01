@@ -23,13 +23,23 @@ class Gridder:
 
         # Gridding weights if ROBUST OR UNIFORM
         if scheme != 0:
-            self.grid_robust(z, u_pos, v_pos, deltau, deltav, weight, imagesize)
+            self.grid_weights(z, u_pos, v_pos, deltau, deltav, weight, imagesize)
             # Selecting a scheme for weights
             weight = self.scheme_weights(z, u_pos, v_pos, scheme, robust, weight)
         #
         self.grid_visibilities(z, u_pos, v_pos, deltau, deltav, weight, imagesize, uv_value)
 
-    def grid_robust(self, z, u, v, deltau, deltav, weight, imagesize):
+    def grid_weights(self, z, u, v, deltau, deltav, weight, imagesize):
+        """
+        Funtion that grid the weights
+        :param z: The position of visibility
+        :param u: The u positions
+        :param v: The v positions
+        :param deltau: The dalta u value
+        :param deltav: The delta v value
+        :param weight: The weights values
+        :param imagesize: The number N of pixels (image of N x N)
+        """
         for k in range(0, z):
             j = int(np.round(u[k] / deltau) + imagesize / 2)
             i = int(np.round(v[k] / deltav) + imagesize / 2)
@@ -38,7 +48,16 @@ class Gridder:
             self.gridded_weights[i][j] += weight[k]
 
     def scheme_weights(self, z, u, v, scheme, robust, weight):
-
+        """
+        Function that scheme the weights
+        :param z: The position of visibility
+        :param u: The u positions
+        :param v: The v positions
+        :param scheme: scheme used
+        :param robust: robust value
+        :param weight: The weights values
+        :return The schemed weights
+        """
         average_weights = np.sum(self.gridded_weights ** 2) / np.sum(weight)
         for k in range(0, z):
             if scheme == 1:
@@ -52,6 +71,17 @@ class Gridder:
 
 
     def grid_visibilities(self, z, u, v, deltau, deltav, weight, imagesize, uv_value):
+        """
+        Function that calculates the gridded uv values
+        :param z: The position of visibility
+        :param u: The u positions
+        :param v: The v positions
+        :param deltau: The dalta u value
+        :param deltav: The delta v value
+        :param weight: The weights values
+        :param imagesize: The number N of pixels (image of N x N)
+        :param uv_value: The value of visibilities
+        """
         # Gridding visibilities and weights with a scheme
         gridded_weights = np.zeros((imagesize, imagesize)) * (cds.Jy / cds.Jy)
         gridded_Vo = np.zeros((imagesize, imagesize)) + 1.0j * np.zeros((imagesize, imagesize)) * cds.Jy

@@ -1,13 +1,9 @@
 import tkinter as tk
-from pathlib import Path
 from tkinter.filedialog import askopenfilename
-import numpy as np
 import astropy.units as u
-from astropy.units import cds
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-from numba import jit
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from frontClasses.plotter import Plotter
+
+from backClasses.plotter import Plotter
 from backClasses.interferometer import Interferometer
 from backClasses.filemanager import FileManager
 from backClasses.gridder import Gridder
@@ -24,10 +20,6 @@ class FrameA(tk.Frame):
         self.filename_source = tk.StringVar()
         self.filename_antenna.set(self.get_file_name('/home/seba/Desktop/alma.C34-2.cfg'))
         self.filename_source.set(self.get_file_name('/home/seba/Downloads/cameraman(1).fits'))
-        #
-
-        #self.charge_sky_image(interferometer, '/home/seba/Downloads/cameraman(1).fits')
-        #self.charge_antenna_config(interferometer, '/home/seba/Desktop/alma.C34-2.cfg')
         #
         self.plotter = Plotter(1, 2, 9, 5, w=.5, l=0.08, b=0.01)
         self.colorbar = None

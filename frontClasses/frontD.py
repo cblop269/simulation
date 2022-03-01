@@ -7,8 +7,6 @@ from astropy.units import cds
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from numba import jit
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from frontClasses.plotter import Plotter
-from backClasses.interferometer import Interferometer
 from backClasses.filemanager import FileManager
 from backClasses.gridder import Gridder
 from backClasses.fouriertransformer import FT

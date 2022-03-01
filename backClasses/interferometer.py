@@ -8,60 +8,55 @@ from numba import jit
 from scipy.constants import c
 from scipy.constants import k
 from astropy.io import fits
-from pynufft import NUFFT
-from pathlib import Path
-import finufft
 
 from backClasses.visibility import Visibility
 from backClasses.baseline import Baseline
 from backClasses.fouriertransformer import FT
 
-
 class Interferometer:
-
+    sigma = 0 * cds.Jy
+    sky_image = None
+    fft_image = None
+    visibilities = None
     def __init__(self, antenna_route: str = None):
-        self.antenna_pos = None
-        self.sigma = 0 * cds.Jy
-        self.antenna_number = None
-        self.antenna_area = None
-        self.sky_image = None
-        self.fft_image = None
-        self.visibilities = None
+        self.noise = None
         if antenna_route is not None:
-            # assignment of antenna position
-            self.read_antenna_config(antenna_route)
+            # assignment of antenna parameters
+            antenna_config = self.read_antenna_config(antenna_route)
+            antenna_number = len(antenna_config)
+            antenna_radius = np.sum(antenna_config[:, 3]) * u.m / (2 * antenna_number)
+            #   save parameters
+            self.antenna_area = np.pi * (antenna_radius ** 2)
+            self.antenna_number = antenna_number
+            self.antenna_pos = antenna_config[:, :3] * u.m
+
             # assignment of baseline
-            self.compute_baselines()
-            #self.baseline = Baseline(baseline, self.antenna_pos)
+            baseline = self.compute_baselines()
+            self.baseline = Baseline(baseline, self.antenna_pos)
         else:
             raise ValueError('antenna route has not been initialized')
 
     def read_antenna_config(self, route: str):
+        """
+        Read a configuration of antennas with extension '.cfg', and return the data
+        :param route: The route of the antenna configuration file (.cfg)
+        :return: The position in y, v, w and the diameter od dish
+        """
         try:
             # extract content from the route file
             file_observatory = np.loadtxt(route, skiprows=3, usecols=(0, 1, 2, 3))
-            # get other parameters
-            antenna_position = file_observatory[:, :3]
-            antenna_number = len(file_observatory)
-            antenna_radius = np.sum(file_observatory[:, 3]) / (2 * antenna_number)
-            antenna_radius *= u.m
-            # save parameters
-            self.antenna_area = np.pi * (antenna_radius ** 2)
-            self.antenna_number = antenna_number
-            self.antenna_pos = antenna_position * u.m
+            return file_observatory
         except IOError as e:
             print("I/O error({0}): {1}".format(e.errno, e.strerror))
-            sys.exit()
+            #sys.exit()
 
     @jit(forceobj=True)
     def compute_baselines(self):
-        # antpos[] are XYZ coordinates in meters. XY aligned with celestial equator
-        # Z pointing to NCP
-        # antpos[1,:] -> East,  antpos[2, :] -> North, antpos[3,:] -> North Celestial Pole
-        # B : baselines vectors [:, 1] = x, [:, 2] = y, [:, 3] = z
-        # antpos[] antenna positions in meters [:, 1] = x, [:, 2] = y, [:, 3] = z
-
-        # map_baseline = {}
+        """
+        Compute all the baselines for the antenna positions
+        :return: The baseline results
+        """
+        # subtract all the positions
         ant_set1 = np.repeat(self.antenna_pos, repeats=len(self.antenna_pos), axis=0)
         ant_set2 = np.concatenate([self.antenna_pos] * len(self.antenna_pos), axis=0)
         baseline = ant_set1 - ant_set2
@@ -69,19 +64,21 @@ class Interferometer:
         rows = np.where(np.sum(baseline, axis=1) == 0)
         baseline = np.delete(baseline, rows, 0)
 
-        # Solo para pruebas unitarias
-        #baseline = baseline[:1, :] # hay que remover esto <------------------
+        # Only for unitery tests
+        #baseline = baseline[:1, :] # remove this <------------------
 
         # transpose the baselines array
         baseline = baseline.transpose()
-        self.baseline = Baseline(baseline, self.antenna_pos)
+        return baseline
 
     def compute_hour_angle(self, ha_start: float = None, ha_end: float = None, dt: int = None):
-        # ha_rad[] vector with hour angle samplings in radians!!!
-        # ha_star, ha_end in Hours (for instance -1 hora, 1 hora)
-        # dt sampling interval in seconds (for instance 60 seconds)
-        # check hour angle limits
-
+        """
+        Calculate an array with all the Hour angles along the sample time
+        :param ha_start: Hour angle of start
+        :param ha_end: Hour angle of end
+        :param dt: The sample interval
+        :return: The array with all the Hour angles
+        """
         # take the units, to make the values dimensionless
         ha_unit = ha_start.unit
         ha_start = ha_start.value
@@ -92,12 +89,16 @@ class Interferometer:
         ha_rad = ha_rad * ha_unit
         return ha_rad
 
-    def create_uv_position(self, lat_rad: float = None, decl_rad: float = None,
-                           ha: np.ndarray = None, obs_freq: float = None):
-        # obs_freq is observing frequency in Hz (continuum ??)
-        # telescope_lat in degrees. Example -23
-        # source_decl Source declination in degrees. For instance 18
-
+    def create_uv_position(self, lat_rad: float = None, decl_rad: float = None, ha: np.ndarray = None,
+                           obs_freq: float = None):
+        """
+        Function that calculates the uvw positions
+        :param lat_rad: latitude of the telescope in rad units
+        :param decl_rad: Declination of the source in rad units
+        :param ha: array of Hour angles in rad units
+        :param obs_freq: Observation frequency
+        :return The uvw positions
+        """
         # Rotate around x to rise w -Dec degrees
         R2 = np.array([[1, 0, 0],
                        [0, np.cos(((np.pi / 2) * u.rad) - decl_rad), -np.sin(((np.pi / 2) * u.rad) - decl_rad)],
@@ -122,51 +123,69 @@ class Interferometer:
         #   u positions array, v positions array and w positions array
         m, n, l = np.shape(uvw)
         uvw = uvw.transpose([1, 0, 2]).reshape(n, m * l)
-        imagesize = len(self.sky_image)
-        self.visibilities = Visibility(uvw, obs_freq, imagesize)
+        return uvw
 
     def apply_rotation_matrix(self, matrix3: np.ndarray, matrix4: np.matrix, matrix2: np.matrix,
                               lambda_num: float):
+        """
+        Function that calculates the projection application of matrix
+        :param matrix3: Rotation matrix of HA
+        :param matrix4: Rotation matrix of latitude
+        :param matrix2: Rotation matrix of declination
+        :param lambda_num: The wavelength
+        :return The uv position of the projection
+        """
         uvw = matrix4 @ matrix3.reshape(3, 3) @ matrix2
         uvw = uvw.transpose()
         uvw = (uvw @ self.baseline.baselines) / lambda_num
         return np.asarray(uvw)
 
     def read_image(self, route: str = None):
+        """
+        Read a file a '.fits' file with the sky image, and define it as attribute
+        :param route: The route of the sky image file (.cfg)
+        """
         try:
             with fits.open(route) as image:
                 image_data = image[0].data
             self.sky_image = image_data
         except IOError as e:
             print("I/O error({0}): {1}".format(e.errno, e.strerror))
-            sys.exit()
+            #sys.exit()
 
     @jit
-    def bilinear_interpolation(self):
-        u = self.visibilities.UVW[0]
-        v = self.visibilities.UVW[1]
+    def bilinear_interpolation(self, u_pos, v_pos):
+        """
+        Function that aplies the bilinear interpolation to the visibilities
+        :param u_pos: the u positions
+        :param v_pos: the v positions
+        :return The uv position interpolated
+        """
         # other variables
         N = max(len(self.fft_image[0]), len(self.fft_image))
         deltau = - self.visibilities.deltau
 
         # find the list of j and i equivalent to one of the four points, Q11 points
-        list_j = np.floor(u / deltau) + ((N - 1) / 2)  # horizontal
-        list_i = np.floor(v / deltau) + ((N - 1) / 2)  # vertical
+        list_j = np.floor(u_pos / deltau) + ((N - 1) / 2)  # horizontal
+        list_i = np.floor(v_pos / deltau) + ((N - 1) / 2)  # vertical
 
         # then is applied  the linear interpolation
-        l_alpha = (u - ((list_j - ((N - 1) / 2)) * deltau)) / deltau
-        l_beta = (v - ((list_i - ((N - 1) / 2)) * deltau)) / deltau
-        uv_value = np.apply_along_axis(self.calculate_uv_value, 0, [list_j, list_i, l_alpha, l_beta])
+        l_alpha = (u_pos - ((list_j - ((N - 1) / 2)) * deltau)) / deltau
+        l_beta = (v_pos - ((list_i - ((N - 1) / 2)) * deltau)) / deltau
+        uv_value = np.apply_along_axis(self.interpolate_uv_value, 0, [list_j, list_i, l_alpha, l_beta])
 
-        # values are created for the visibilities object
-        self.visibilities.set_value(uv_value * cds.Jy)
+        return uv_value * cds.Jy
 
     @jit
-    def calculate_uv_value(self, data: np.ndarray = None):
-        # current u position = data[0]
-        # current v position = data[1]
-        # current alpha = data[2]
-        # current beta = data[3])
+    def interpolate_uv_value(self, data: np.ndarray = None):
+        """
+        Function that calculates the bilinear interpolation of an uv value
+        :param data: current u position = data[0]
+                     current v position = data[1]
+                     current alpha = data[2]
+                     current beta = data[3])
+        :return The uv value interpolated
+        """
         j = int(data[0])
         i = int(data[1])
 
@@ -182,8 +201,17 @@ class Interferometer:
 
     def run(self, telescope_lat: float = None, source_decl: float = None, ha_start: float = None,
             ha_end: float = None, dt: int = None, obs_freq: float = None, usefft: bool = None):
-        # toma: la imagen de entrada(sky_image), el objeto visibilities(self)
-
+        """
+        Function that makes the interometer run, and save the visibilities as an attribute
+        :param telescope_lat: latitude of the telescope
+        :param source_decl: Declination of the source
+        :param ha_start: Hour angle of start
+        :param ha_end: Hour angle of end
+        :param dt: The sample interval
+        :param obs_freq: Observation frequency
+        :param usefft: Boolean value, if True fft will be used, if False nufft will be used
+        """
+        # create the object fourier transformer
         ft = FT()
         # convert units
         telescope_lat = telescope_lat.to(u.rad)
@@ -194,30 +222,43 @@ class Interferometer:
         dt = dt.to(u.rad)
         obs_freq = obs_freq.to(u.Hz)
 
-        # uv positions
+        # Calculate the uv positions
         ha = self.compute_hour_angle(ha_start, ha_end, dt)
-        self.create_uv_position(telescope_lat, source_decl, ha, obs_freq)
-        # values of visibilities
+        uvw = self.create_uv_position(telescope_lat, source_decl, ha, obs_freq)
+        imagesize = len(self.sky_image)
+        self.visibilities = Visibility(uvw, obs_freq, imagesize)
+
+        # Calculate the values of visibilities
+        u_pos = self.visibilities.UVW[0]
+        v_pos = self.visibilities.UVW[1]
         if usefft:
-            # image with fft
+            # with fft
             self.fft_image = ft.transform_fft(self.sky_image) # self.transform_fft()
-            self.bilinear_interpolation()
-            #self.fourier_series()
-            # delatu
+            uv_value = self.bilinear_interpolation(u_pos, v_pos)
+            self.visibilities.set_value(uv_value)
         else:
-            u_pos = self.visibilities.UVW[0]
-            v_pos = self.visibilities.UVW[1]
+            # with nufft
             max_uv = self.visibilities.max_uv_coordinate
-            self.visibilities.set_value(ft.transform_nufft(self.sky_image, u_pos, v_pos, max_uv))
+            uv_value = ft.transform_nufft(self.sky_image, u_pos, v_pos, max_uv)
+            self.visibilities.set_value(uv_value)
 
 
-    def get_noise_level(self, system_temperature, integration_time, bandwidth):
+    def get_noise_level(self, sys_T, intg_t, bw):
+        """
+        Recalculate the sigma atributte
+        :param sys_T: system_temperature
+        :param intg_t: integration_time
+        :param bw: Bandwidth
+        """
         sqrt_root = self.antenna_number * (self.antenna_number - 1)
-        sqrt_root = math.sqrt(sqrt_root * integration_time * bandwidth)
-        self.sigma = 2 * (k * u.J / u.K) * system_temperature / (self.antenna_area * sqrt_root)
+        sqrt_root = math.sqrt(sqrt_root * intg_t * bw)
+        self.sigma = 2 * (k * u.J / u.K) * sys_T / (self.antenna_area * sqrt_root)
         self.sigma = self.sigma.to(u.Jy)
 
     def add_noise(self):
+        """
+        create an array of noise for every visibility
+        """
         shape_values = self.visibilities.uv_value.shape
         real_noise = np.random.normal(0, self.sigma.value, shape_values) * self.sigma.unit
         imaginary_noise = np.random.normal(0, self.sigma.value, shape_values) * self.sigma.unit * 1j

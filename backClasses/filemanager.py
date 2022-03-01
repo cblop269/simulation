@@ -6,47 +6,31 @@ from astropy.io import fits
 
 class FileManager:
 
-    def __init__(self):
-        value = 0
-
-    def read_image(self, route: str = None):
-        try:
-            with fits.open(route) as image:
-                print(image.info())
-                image_data = image[0].data
-            self.sky_image = image_data
-        except IOError as e:
-            print("I/O error({0}): {1}".format(e.errno, e.strerror))
-            sys.exit()
-
-    def read_antenna_config(self, route: str):
-        try:
-            # extract content from the route file
-            file_observatory = np.loadtxt(route, skiprows=3, usecols=(0, 1, 2, 3))
-            # get other parameters
-            antenna_position = file_observatory[:, :3]
-            antenna_number = len(file_observatory)
-            antenna_radius = np.sum(file_observatory[:, 3]) / (2 * antenna_number)
-            antenna_radius *= u.m
-            # save parameters
-            self.antenna_area = np.pi * (antenna_radius ** 2)
-            self.antenna_number = antenna_number
-            self.antenna_pos = antenna_position * u.m
-        except IOError as e:
-            print("I/O error({0}): {1}".format(e.errno, e.strerror))
-            sys.exit()
-
     def write_image(self, data, route: str = None, name: str = None):
+        """
+        Write the dirty image in a fits file
+        :param data: The data from the image
+        :param route: The route in where the file was created
+        :param name: name of the file
+        """
         if type(data) is u.quantity.Quantity:
             data = data.value
 
         real = data.real
         imag = data.imag
-        hdul = fits.HDUList([fits.PrimaryHDU(real), fits.ImageHDU(imag)]) #hdul = fits.HDUList([fits.PrimaryHDU(), fits.ImageHDU(real), fits.ImageHDU(imag)])
+        abs = np.abs(real + imag)
+        #hdul = fits.HDUList([fits.PrimaryHDU(real), fits.ImageHDU(imag)])
+        hdul = fits.HDUList([fits.PrimaryHDU(abs), fits.ImageHDU(real), fits.ImageHDU(imag)])
 
         hdul.writeto(route + '/' + name + '.fits')
 
     def write_array(self, data, route: str = None, name: str = None):
+        """
+        Write the numpy array with the gridded values in a .npy file
+        :param data: The data with the values
+        :param route: The route in where the file was created
+        :param name: name of the file
+        """
         # header
         # delta u: delta v: number of antenna: system temperature: integration time:
         # value real: value imaginary: weight: noise real: noise imaginary: frequency:
@@ -55,6 +39,12 @@ class FileManager:
         np.savetxt(route + '/' + name + '.npy', data)
 
     def write_visibilities(self, interferometer, route: str = None, name: str = None):
+        """
+        Write a .txt file with the visibilities
+        :param interferometer: The interferometer with the parameters
+        :param route: The route in where the file was created
+        :param name: name of the file
+        """
         # header
         # delta u: delta v: number of antenna: system temperature: integration time:
         # value real: value imaginary: weight: noise real: noise imaginary: frequency:
@@ -77,7 +67,7 @@ class FileManager:
             w = str(interferometer.visibilities.UVW[2][z])
             valueR = str((interferometer.visibilities.uv_value.value[z]).real)
             valueI = str((interferometer.visibilities.uv_value.value[z]).imag)
-            weight = str(1)
+            weight = str(interferometer.visibilities.weight[z])
             noiseR = str((interferometer.noise.value[z]).real)
             noiseI = str((interferometer.noise.value[z]).imag)
             frequency = str(interferometer.visibilities.frequency)
