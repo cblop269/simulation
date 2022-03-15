@@ -22,9 +22,6 @@ class Window(tk.Tk):
     def __init__(self):
         super().__init__()
         self.config(bg="gray20")
-        # self.minsize(1200, 600)
-        #
-        self.interferometer = Interferometer('/home/seba/Desktop/alma.C34-2.cfg')
         self.create_sub_menu()
         self.create_widgets()
 
@@ -38,7 +35,6 @@ class Window(tk.Tk):
         #
         self.notebook = tk.ttk.Notebook(self)
         self.frameA = FrameA(self.notebook)
-        self.frameA.set_interferometer(self.interferometer)
         self.frameA.charge_antenna_config('/home/seba/Desktop/alma.C34-2.cfg')
         self.frameA.charge_sky_image('/home/seba/Downloads/cameraman(1).fits')
         self.frameB = FrameB(self.notebook)
@@ -81,7 +77,7 @@ class Window(tk.Tk):
         latitude, declination, ha_start, ha_end, sample_interval, frequency, usefft = self.frameA.get_inputs()
 
         # run the interferometer
-        self.interferometer.run(latitude, declination, ha_start, ha_end, sample_interval, frequency, usefft)
+        self.frameA.interferometer.run(latitude, declination, ha_start, ha_end, sample_interval, frequency, usefft)
         # if the noise option is being used, the sigma rms value will not be zero.
         if self.frameNoise.use_noise.get():
             # get the noise parameters
@@ -90,30 +86,31 @@ class Window(tk.Tk):
             if integration_time == 0 or bandwidth == 0:
                 raise ValueError('invalid parameter, integration time and bandwidth must not be 0')
             # call the function of the interferometer
-            self.interferometer.get_noise_level(system_temperature, integration_time, bandwidth)
+            self.frameA.interferometer.get_noise_level(system_temperature, integration_time, bandwidth)
         else:
-            self.interferometer.sigma = 0 * cds.Jy
+            self.frameA.interferometer.sigma = 0 * cds.Jy
 
         # fuctions to obtain the dirty image
         ft = FT()
-        self.interferometer.add_noise()
-        gridder = Gridder(self.interferometer.visibilities, self.interferometer.noise, len(self.interferometer.sky_image), 1, 0)
-        self.interferometer.dirty_image = ft.transform_ifft(usefft, gridder.gridded_vo)
-        #self.interferometer.inverse_transform_fft(usefft, gridder.gridded_vo)
+        self.frameA.interferometer.add_noise()
+        gridder = Gridder(self.frameA.interferometer.visibilities, self.frameA.interferometer.noise, len(self.frameA.interferometer.sky_image), 1, 0)
+        dirty_image = ft.transform_ifft(usefft, gridder.gridded_vo)
+        self.frameA.interferometer.set_dirty_image(dirty_image)
+        #self.frameA.interferometer.inverse_transform_fft(usefft, gridder.gridded_vo)
 
         # get the inputs to draw plots
-        deltau = self.interferometer.visibilities.deltau
-        deltav = self.interferometer.visibilities.deltav
-        deltax = self.interferometer.visibilities.deltax
-        deltay = self.interferometer.visibilities.deltay
+        deltau = self.frameA.interferometer.visibilities.deltau
+        deltav = self.frameA.interferometer.visibilities.deltav
+        deltax = self.frameA.interferometer.visibilities.deltax
+        deltay = self.frameA.interferometer.visibilities.deltay
 
         grid_image = gridder.gridded_vo.value
-        dirty_image = self.interferometer.dirty_image.value
-        visibilities = np.empty([3, len(self.interferometer.visibilities.UVW[0])])
-        visibilities[0] = self.interferometer.visibilities.UVW[0]
-        visibilities[1] = self.interferometer.visibilities.UVW[1]
-        visibilities[2] = np.log(np.abs(self.interferometer.visibilities.uv_value + self.interferometer.noise).value + 1)
-        #fft_image = np.log(abs(self.interferometer.fft_image) + 1)
+        dirty_image = self.frameA.interferometer.dirty_image.value
+        visibilities = np.empty([3, len(self.frameA.interferometer.visibilities.UVW[0])])
+        visibilities[0] = self.frameA.interferometer.visibilities.UVW[0]
+        visibilities[1] = self.frameA.interferometer.visibilities.UVW[1]
+        visibilities[2] = np.log(np.abs(self.frameA.interferometer.visibilities.uv_value + self.frameA.interferometer.noise).value + 1)
+        #fft_image = np.log(abs(self.frameA.interferometer.fft_image) + 1)
         grid_image = np.log(np.abs(grid_image) + 1)
         dirty_image = np.abs(dirty_image)
 
@@ -130,7 +127,7 @@ class Window(tk.Tk):
         # except ValueError as e:
         # messagebox.showerror(message='error: "{}"'.format(e))
         # tk.messagebox.showwarning("Warning", "Fill in all the spaces with numerical values")
-        self.frameNoise.draw_noise(self.interferometer.visibilities.UVW[:2], self.interferometer.noise,
-                                   self.interferometer.visibilities.uv_value)
+        self.frameNoise.draw_noise(self.frameA.interferometer.visibilities.UVW[:2], self.frameA.interferometer.noise,
+                                   self.frameA.interferometer.visibilities.uv_value)
 
-        self.frameExport.enable_export(self.interferometer, grid_image, dirty_image)
+        self.frameExport.enable_export(self.frameA.interferometer, grid_image, dirty_image)

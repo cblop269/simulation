@@ -161,7 +161,7 @@ class Window(tk.Tk):
         self.interferometer.run(latitude_str, rad_dec_str, hour_angle_S, hour_angle_E,
                                 sample_number, sample_interval)
         # draw sky image
-        delta_X = 1 / (2 * self.interferometer.visibilities.max_uv_coordinate)
+        delta_X = 1 / (2 * self.interferometer.visibilities.__max_uv_coordinate)
         delta_X = delta_X / 7
         x_limit = (1 / 2) * delta_X
         y_limit = (1 / 2) * delta_X

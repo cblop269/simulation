@@ -15,7 +15,7 @@ class FrameA(tk.Frame):
         super().__init__(notebook)
         self.config(bg="gray26")
         #
-        #self.interferometer = Interferometer('/home/seba/Desktop/alma.C34-2.cfg')
+        self.interferometer = Interferometer('/home/seba/Desktop/alma.C34-2.cfg')
         self.filename_antenna = tk.StringVar()
         self.filename_source = tk.StringVar()
         self.filename_antenna.set(self.get_file_name('/home/seba/Desktop/alma.C34-2.cfg'))
@@ -175,15 +175,15 @@ class FrameA(tk.Frame):
             route = tk.filedialog.askopenfilename()
         self.interferometer.read_image(route)
         self.filename_source.set(self.get_file_name(route))
-        self.draw_inputs(self.interferometer.sky_image, self.interferometer.antenna_pos)
+        self.draw_inputs(self.interferometer.sky_image, self.interferometer.baseline.antenna)
 
     def charge_antenna_config(self, route: str = None):
         if route is None:
             route = tk.filedialog.askopenfilename()
-        self.interferometer.read_antenna_config(route)
+        antenna_config = self.interferometer.read_antenna_config(route)
         self.filename_antenna.set(self.get_file_name(route))
-        self.interferometer.compute_baselines()
-        self.draw_inputs(self.interferometer.sky_image, self.interferometer.antenna_pos)
+        self.interferometer.compute_baselines(antenna_config)
+        self.draw_inputs(self.interferometer.sky_image, self.interferometer.baseline.antenna)
 
     def get_file_name(self, filepath):
         filepath = filepath.split('/')
@@ -200,7 +200,7 @@ class FrameA(tk.Frame):
 
     def get_inputs(self):
         # get the respective value inputs and his units
-        latitude = (float(self.in_lat.get()) - 90) * self.option_antenna[self.antenna_unit.get()]
+        latitude = (float(self.in_lat.get())) * self.option_antenna[self.antenna_unit.get()]
         declination = float(self.in_rad_dec.get()) * self.option_observatory[self.observatory_unit.get()]
         ha_start = float(self.in_h_angle_S.get()) * self.option_ha_start[self.ha_start_unit.get()]
         ha_end = float(self.in_h_angle_E.get()) * self.option_ha_end[self.ha_end_unit.get()]
