@@ -49,7 +49,7 @@ class FT:
             dirty_image = np.fft.fftshift(dirty_image)
         return dirty_image
 
-    @jit  # (forceobj=True)
+    #@jit  # (forceobj=True)
     def transform_fs(self, sky_image, u_pos, v_pos, max_uv):
         """
         Aplication of the Fourie Series to get the uv values
@@ -60,25 +60,24 @@ class FT:
         :return A array with the transformed values of the image
         """
         m, n = np.shape(sky_image)
-
-        uv = np.concatenate((u_pos, v_pos), axis=0)
+        uv = np.array([u_pos, v_pos])
         uv = uv.transpose()
 
         # convert to radians
         uv = uv * np.pi / max_uv
         #
-        sky_image = sky_image.reshape(m * n)
+        image = sky_image.reshape(m * n)
         x = np.linspace(- n / 2, (n / 2) - 1, n)
         y = np.linspace(- m / 2, (m / 2) - 1, m)
         xg, yg = np.meshgrid(x, y)
         xg = xg.reshape(m * n)
         yg = yg.reshape(m * n)
         #
-        result = np.apply_along_axis(self.calculate_uv_value_FS, 1, uv, sky_image, xg, yg)
+        result = np.apply_along_axis(self.__calculate_uv_value_FS, 1, uv, image, xg, yg)
         return result * cds.Jy
 
     @jit
-    def calculate_uv_value_FS(self, uvw, sky_image, j_set, i_set):
+    def __calculate_uv_value_FS(self, uvw, sky_image, j_set, i_set):
         """
         Sub-function of the fourier series, calculate a summation for one value
         :param uvw: The uvw positions
