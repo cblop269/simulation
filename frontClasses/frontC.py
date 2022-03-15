@@ -19,7 +19,7 @@ class FrameC(tk.Frame):
         super().__init__(notebook)
         self.config(bg="gray26")
         #
-        self.plotter = Plotter(2, 1, 9, 6, w=.5, l=0.1, t=0.9)
+        self.plotter = Plotter(2, 1, 9, 6, w=.5, l=0.1, h=0.5)
 
         #   Frames
         self.canvasD = FigureCanvasTkAgg(self.plotter.figure, self)
@@ -47,7 +47,7 @@ class FrameC(tk.Frame):
     def set_variables(self):
         #   Variables
         self.use_noise = tk.BooleanVar()
-        self.use_noise.set(True)
+        self.use_noise.set(False)
         self.system_temperature = tk.StringVar(value='200')
         self.integration_time = tk.StringVar(value='60')
         self.bandwidth = tk.StringVar(value='300')
@@ -55,11 +55,11 @@ class FrameC(tk.Frame):
     def set_input_entries(self):
         #	Input
         self.in_system_temperature = tk.Entry(self.frame8, width=15, justify='right')
-        self.in_system_temperature.config(textvariable=self.system_temperature)
+        self.in_system_temperature.config(textvariable=self.system_temperature, state='disabled')
         self.in_integration_time = tk.Entry(self.frame8, width=15, justify='right')
-        self.in_integration_time.config(textvariable=self.integration_time)
+        self.in_integration_time.config(textvariable=self.integration_time, state='disabled')
         self.in_bandwidth = tk.Entry(self.frame8, width=15, justify='right')
-        self.in_bandwidth.config(textvariable=self.bandwidth)
+        self.in_bandwidth.config(textvariable=self.bandwidth, state='disabled')
         self.in_system_temperature.grid(row=4, column=1, columnspan=1, padx=10, pady=10)
         self.in_integration_time.grid(row=5, column=1, columnspan=1, padx=10, pady=10)
         self.in_bandwidth.grid(row=6, column=1, columnspan=1, padx=10, pady=10)
@@ -113,21 +113,15 @@ class FrameC(tk.Frame):
         bandwidth = float(self.in_bandwidth.get()) * self.option_bandwdith[self.bandwdith_unit.get()]
         return [system_temperature, integration_time, bandwidth]
 
-    def draw_noise(self, positionUV, noise_value, value):
-        self.plotter.ax[0].cla()
-        self.plotter.ax[1].cla()
-        self.plotter.ax[0].set_title('Visibilities Value')
-        self.plotter.ax[0].set_xlabel('distance (λ)')
-        self.plotter.ax[0].set_ylabel('value (Jy)')
-        self.plotter.ax[1].set_title('Noise Values')
-        self.plotter.ax[1].set_xlabel('distance (λ)')
-        self.plotter.ax[1].set_ylabel('value (Jy)')
+    def draw_noise(self, positionUV, noise_value, uv_value):
         # get the uv value
-        noise_value = np.abs(noise_value)
-        value = np.abs(value)
+        noise_value = np.abs(noise_value.value)
+        uv_value = np.abs(uv_value.value)
         # get the norm from u and v
         distance = np.linalg.norm(positionUV, axis=0)
         # draw plots
-        self.plotter.ax[0].plot(distance[distance.argsort()], value[distance.argsort()], linewidth=0.2)
-        self.plotter.ax[1].plot(distance[distance.argsort()], noise_value[distance.argsort()], linewidth=0.2)
+        self.plotter.draw_plot(self.plotter.ax[0], distance[distance.argsort()], uv_value[distance.argsort()],
+                              'Visibilities Value', 'distance (λ)', 'value (Jy)')
+        self.plotter.draw_plot(self.plotter.ax[1], distance[distance.argsort()], noise_value[distance.argsort()],
+                              'Noise Values', 'distance (λ)', 'value (Jy)')
         self.canvasD.draw()
