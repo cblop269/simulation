@@ -57,15 +57,15 @@ class FrameD(tk.Frame):
 
     def set_input_entries(self):
         #	Input
-        self.imput_export_uv = tk.Entry(self.frame5, width=15, justify='right')
+        self.imput_export_uv = tk.Entry(self.frame5, width=45, justify='right')
         self.imput_export_uv.config(textvariable=self.default_export_uv)
-        self.imput_export_gi = tk.Entry(self.frame6, width=15, justify='right')
+        self.imput_export_gi = tk.Entry(self.frame6, width=45, justify='right')
         self.imput_export_gi.config(textvariable=self.default_export_gi)
-        self.imput_export_di = tk.Entry(self.frame7, width=15, justify='right')
+        self.imput_export_di = tk.Entry(self.frame7, width=45, justify='right')
         self.imput_export_di.config(textvariable=self.default_export_di)
-        self.imput_export_uv.grid(row=2, column=0, pady=20, padx=20)
-        self.imput_export_gi.grid(row=2, column=0, pady=20, padx=20)
-        self.imput_export_di.grid(row=2, column=0, pady=20, padx=20)
+        self.imput_export_uv.grid(row=2, column=0, pady=20, padx=40)
+        self.imput_export_gi.grid(row=2, column=0, pady=20, padx=40)
+        self.imput_export_di.grid(row=2, column=0, pady=20, padx=40)
 
 
     def set_buttons(self):
