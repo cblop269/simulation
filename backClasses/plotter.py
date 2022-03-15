@@ -84,3 +84,31 @@ class Plotter:
             subplot.set_ylim([v_center - (distance * border_space), v_center + (distance * border_space)])
 
         return im
+
+    def draw_plot(self, subplot, horizontal_values: np.ndarray, vertical_values: np.ndarray, title: str = None,
+                  horiz_label: str = None, vert_label: str = None):
+        """
+        Function that apply scatter function in the visibilities
+        :param subplot: The subplot where the graph will be
+        :param horizontal_values: Horizontal position, generally u axe
+        :param vertical_values: Vertical position, generally v axe
+        :param value: The value of a determined uv position
+        :param title: of the plot
+        :param horiz_label: The horizontal label of the plot
+        :param vert_label: The vertical label of the plot
+        :param h_limit: Horizontal axe limit
+        :param v_limit: Vertical axe limit
+        :param dot_size: The size of the points
+        :return The reference of the plot
+        """
+        subplot.cla()
+        subplot.set_title(title)
+        subplot.set_xlabel(horiz_label)
+        subplot.set_ylabel(vert_label)
+        #
+        im = subplot.plot(horizontal_values, vertical_values, linewidth=0.2)
+        subplot.fill_between(horizontal_values, vertical_values, cmap='viridis')
+        subplot.ticklabel_format(axis="x", style="sci", scilimits=(0, 0))
+        subplot.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
+
+        return im
