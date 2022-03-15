@@ -17,22 +17,16 @@ class Interferometer:
     sigma = 0 * cds.Jy
     sky_image = None
     fft_image = None
+    dirty_image = None
     visibilities = None
     def __init__(self, antenna_route: str = None):
+        self.baseline = None
         self.noise = None
         if antenna_route is not None:
             # assignment of antenna parameters
             antenna_config = self.read_antenna_config(antenna_route)
-            antenna_number = len(antenna_config)
-            antenna_radius = np.sum(antenna_config[:, 3]) * u.m / (2 * antenna_number)
-            #   save parameters
-            self.antenna_area = np.pi * (antenna_radius ** 2)
-            self.antenna_number = antenna_number
-            self.antenna_pos = antenna_config[:, :3] * u.m
-
             # assignment of baseline
-            baseline = self.compute_baselines()
-            self.baseline = Baseline(baseline, self.antenna_pos)
+            self.compute_baselines(antenna_config)
         else:
             raise ValueError('antenna route has not been initialized')
 
@@ -48,17 +42,18 @@ class Interferometer:
             return file_observatory
         except IOError as e:
             print("I/O error({0}): {1}".format(e.errno, e.strerror))
-            #sys.exit()
+
 
     @jit(forceobj=True)
-    def compute_baselines(self):
+    def compute_baselines(self, antenna_config:np.ndarray=None):
         """
         Compute all the baselines for the antenna positions
         :return: The baseline results
         """
+        antenna_pos = antenna_config[:, :3] * u.m
         # subtract all the positions
-        ant_set1 = np.repeat(self.antenna_pos, repeats=len(self.antenna_pos), axis=0)
-        ant_set2 = np.concatenate([self.antenna_pos] * len(self.antenna_pos), axis=0)
+        ant_set1 = np.repeat(antenna_pos, repeats=len(antenna_pos), axis=0)
+        ant_set2 = np.concatenate([antenna_pos] * len(antenna_pos), axis=0)
         baseline = ant_set1 - ant_set2
         # take off the invalid [0,0,0] values of baseline (the distance of an antenna from itself)
         rows = np.where(np.sum(baseline, axis=1) == 0)
@@ -69,9 +64,10 @@ class Interferometer:
 
         # transpose the baselines array
         baseline = baseline.transpose()
-        return baseline
+        antenna_radius = np.sum(antenna_config[:, 3]) * u.m / (2 * len(antenna_config))
+        self.baseline = Baseline(baseline, antenna_pos, antenna_radius)
 
-    def compute_hour_angle(self, ha_start: float = None, ha_end: float = None, dt: int = None):
+    def __compute_hour_angle(self, ha_start: float = None, ha_end: float = None, dt: int = None):
         """
         Calculate an array with all the Hour angles along the sample time
         :param ha_start: Hour angle of start
@@ -89,8 +85,8 @@ class Interferometer:
         ha_rad = ha_rad * ha_unit
         return ha_rad
 
-    def create_uv_position(self, lat_rad: float = None, decl_rad: float = None, ha: np.ndarray = None,
-                           obs_freq: float = None):
+    def __create_uv_position(self, lat_rad: float = None, decl_rad: float = None, ha: np.ndarray = None,
+                             obs_freq: float = None):
         """
         Function that calculates the uvw positions
         :param lat_rad: latitude of the telescope in rad units
@@ -106,8 +102,8 @@ class Interferometer:
 
         # Rotate around x to correct for telescope latitude
         R4 = np.array([[1, 0, 0],
-                       [0, np.cos(lat_rad), -np.sin(lat_rad)],
-                       [0, np.sin(lat_rad), np.cos(lat_rad)]])
+                       [0, np.cos(lat_rad - ((np.pi / 2) * u.rad)), -np.sin(lat_rad - ((np.pi / 2) * u.rad))],
+                       [0, np.sin(lat_rad - ((np.pi / 2) * u.rad)), np.cos(lat_rad - ((np.pi / 2) * u.rad))]])
 
         # create a R3 for every HA
         R3 = np.array([np.cos(ha), -np.sin(ha), np.zeros([len(ha)]),
@@ -118,14 +114,14 @@ class Interferometer:
         R3 = np.swapaxes(R3, 1, 0)
         lambda_num = c * (u.m / u.s) / obs_freq
         # operate every element in the array
-        uvw = np.apply_along_axis(self.apply_rotation_matrix, 1, R3, R4, R2, lambda_num)
+        uvw = np.apply_along_axis(self.__apply_rotation_matrix, 1, R3, R4, R2, lambda_num)
         # re-order the visibilities to be easier to scattering, transposing to get:
         #   u positions array, v positions array and w positions array
         m, n, l = np.shape(uvw)
         uvw = uvw.transpose([1, 0, 2]).reshape(n, m * l)
         return uvw
 
-    def apply_rotation_matrix(self, matrix3: np.ndarray, matrix4: np.matrix, matrix2: np.matrix,
+    def __apply_rotation_matrix(self, matrix3: np.ndarray, matrix4: np.matrix, matrix2: np.matrix,
                               lambda_num: float):
         """
         Function that calculates the projection application of matrix
@@ -151,7 +147,6 @@ class Interferometer:
             self.sky_image = image_data
         except IOError as e:
             print("I/O error({0}): {1}".format(e.errno, e.strerror))
-            #sys.exit()
 
     @jit
     def bilinear_interpolation(self, u_pos, v_pos):
@@ -172,12 +167,12 @@ class Interferometer:
         # then is applied  the linear interpolation
         l_alpha = (u_pos - ((list_j - ((N - 1) / 2)) * deltau)) / deltau
         l_beta = (v_pos - ((list_i - ((N - 1) / 2)) * deltau)) / deltau
-        uv_value = np.apply_along_axis(self.interpolate_uv_value, 0, [list_j, list_i, l_alpha, l_beta])
+        uv_value = np.apply_along_axis(self.__interpolate_uv_value, 0, [list_j, list_i, l_alpha, l_beta])
 
         return uv_value * cds.Jy
 
     @jit
-    def interpolate_uv_value(self, data: np.ndarray = None):
+    def __interpolate_uv_value(self, data: np.ndarray = None):
         """
         Function that calculates the bilinear interpolation of an uv value
         :param data: current u position = data[0]
@@ -223,8 +218,8 @@ class Interferometer:
         obs_freq = obs_freq.to(u.Hz)
 
         # Calculate the uv positions
-        ha = self.compute_hour_angle(ha_start, ha_end, dt)
-        uvw = self.create_uv_position(telescope_lat, source_decl, ha, obs_freq)
+        ha = self.__compute_hour_angle(ha_start, ha_end, dt)
+        uvw = self.__create_uv_position(telescope_lat, source_decl, ha, obs_freq)
         imagesize = len(self.sky_image)
         self.visibilities = Visibility(uvw, obs_freq, imagesize)
 
@@ -250,9 +245,10 @@ class Interferometer:
         :param intg_t: integration_time
         :param bw: Bandwidth
         """
-        sqrt_root = self.antenna_number * (self.antenna_number - 1)
+        baseline = self.baseline
+        sqrt_root = baseline.antenna_number * (baseline.antenna_number - 1)
         sqrt_root = math.sqrt(sqrt_root * intg_t * bw)
-        self.sigma = 2 * (k * u.J / u.K) * sys_T / (self.antenna_area * sqrt_root)
+        self.sigma = 2 * (k * u.J / u.K) * sys_T / (baseline.antenna_area * sqrt_root)
         self.sigma = self.sigma.to(u.Jy)
 
     def add_noise(self):
@@ -263,3 +259,6 @@ class Interferometer:
         real_noise = np.random.normal(0, self.sigma.value, shape_values) * self.sigma.unit
         imaginary_noise = np.random.normal(0, self.sigma.value, shape_values) * self.sigma.unit * 1j
         self.noise = real_noise + imaginary_noise
+
+    def set_dirty_image(self, dirty_image:np.ndarray = None):
+        self.dirty_image = dirty_image

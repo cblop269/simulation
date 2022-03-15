@@ -14,15 +14,15 @@ class Visibility:
         if isinstance(UVW, np.ndarray):
             self.UVW = UVW
         self.number_of_visibilities = len(UVW[0])
-        self.max_uv_coordinate = self.max_uv_coordinate()
+        self.max_uv_coordinate = self.__max_uv_coordinate()
         self.weight = np.ones(self.number_of_visibilities) * (cds.Jy / cds.Jy)
         if frequency is None:
             raise ValueError('frequency has not been initialized')
         else:
             self.frequency = frequency
-        self.calculate_deltas(imagesize)
+        self.__calculate_deltas(imagesize)
 
-    def max_uv_coordinate(self):
+    def __max_uv_coordinate(self):
         """
         Function that calculates the max uv position
         :return max uv position between axe u and axe v
@@ -41,7 +41,7 @@ class Visibility:
         self.uv_value_real = uv_value.real
         self.uv_value_imag = uv_value.imag
 
-    def calculate_deltas(self, imagesize):
+    def __calculate_deltas(self, imagesize):
         """
         Function that calculates and set the delta values
         :param imagesize, the number of pixels N in a image (of a N x N image)
